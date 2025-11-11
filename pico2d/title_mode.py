@@ -107,32 +107,37 @@ def draw():
             SPRITE_BOTTOM_Y = 0
 
         # ------------------------------------------------------------------
-        # 🌟 [수정된 부분: 크기 및 위치 조정]
+        # 🌟 [수정된 부분: 위치 및 크기 조정]
         # ------------------------------------------------------------------
 
-        # [추가] 가로 이동 오프셋 정의 (양수: 오른쪽, 음수: 왼쪽)
-        HORIZONTAL_OFFSET = 50
+        # [수정] 가로 이동 오프셋 정의 (오른쪽으로 80픽셀 이동)
+        HORIZONTAL_OFFSET = 80
+
+        # [수정] 세로 이동 오프셋 정의 (상단에서 200픽셀 아래에 배치)
+        VERTICAL_TOP_PADDING = 200
 
         # 1. 전체 이미지 조합이 차지할 캔버스 너비 (95% 유지)
         COMBINED_WIDTH_RATIO = 0.95
         W_Combined = canvas_width * COMBINED_WIDTH_RATIO
 
-        # 2. 크기 비율 정의: 왼쪽(2.0), 오른쪽(1.0) -> 총 비율 3.0
-        LEFT_RATIO = 2.0
-        TOTAL_RATIO = LEFT_RATIO + 1.0
+        # 2. [수정] 크기 비율 정의: 왼쪽(3.0), 오른쪽(1.0) -> 총 비율 4.0
+        LEFT_RATIO = 3.0
+        TOTAL_RATIO = LEFT_RATIO + 1.0  # 4.0
 
         # 3. 개별 너비 계산
+        # 왼쪽 너비: 전체 너비의 3.0 / 4.0 = 75%
         display_width_left = W_Combined * (LEFT_RATIO / TOTAL_RATIO)
+        # 오른쪽 너비: 전체 너비의 1.0 / 4.0 = 25%
         display_width_right = W_Combined * (1.0 / TOTAL_RATIO)
 
         # 4. 개별 높이 계산 (비율 유지)
         display_height_left = display_width_left * (SPRITE_H / SPRITE_W)
         display_height_right = display_width_right * (SPRITE_H / SPRITE_W)
 
-        # 5. Y 좌표 설정
-        draw_y = canvas_height - display_height_left / 2 - 100
+        # 5. [수정] Y 좌표 설정 (더 아래로 이동)
+        draw_y = canvas_height - display_height_left / 2 - VERTICAL_TOP_PADDING
 
-        # 6. X 좌표 계산: center_x에 오프셋을 더하여 전체 조합 위치를 오른쪽으로 이동
+        # 6. X 좌표 계산: 오프셋을 적용하여 오른쪽으로 이동
         X_Left_Edge = (center_x + HORIZONTAL_OFFSET) - W_Combined / 2
 
         # Image 1 (왼쪽)의 중심 X 좌표
@@ -148,7 +153,7 @@ def draw():
         # --- Image 1: 맨 왼쪽 스프라이트 (왼쪽 스프라이트) ---
         title_image.clip_draw(
             0, SPRITE_BOTTOM_Y, SPRITE_W, SPRITE_H,
-            draw_x_left, draw_y,  # ⚠️ draw_x_left에 오프셋 영향 반영
+            draw_x_left, draw_y,
             display_width_left, display_height_left
         )
 
@@ -157,7 +162,7 @@ def draw():
 
         title_image.clip_draw(
             SPRITE_START_X_RIGHT, SPRITE_BOTTOM_Y, SPRITE_W, SPRITE_H,
-            draw_x_right, draw_y,  # ⚠️ draw_x_right에 오프셋 영향 반영
+            draw_x_right, draw_y,
             display_width_right, display_height_right
         )
 
