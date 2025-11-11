@@ -1,53 +1,48 @@
 # title_mode.py
 
 import game_framework
-from pico2d import *  # 모든 pico2d 함수를 포함
+from pico2d import *
 import play_mode
 
 name = "TitleMode"
 
 # 사용할 전역 변수
-title_image = None  # banners.png
-decoration_image = None  # 12.png (배경)
-# [삭제] 폰트 변수를 삭제했습니다.
-# font = None
+title_image = None
+decoration_image = None
+# 폰트 변수 삭제됨
 
 # 배경 스크롤 변수
 bg_scroll_y = 0
 SCROLL_SPEED = 150
-last_time = 0.0  # delta_time 계산용
+last_time = 0.0
 
 
 # --- 모드 함수 정의 ---
 
 def init():
-    """타이틀 모드가 시작될 때 호출됩니다."""
     global title_image, decoration_image, bg_scroll_y, last_time
-    # [삭제] global font 삭제
 
-    # 1. banners.png 로드 (타이틀 이미지)
+    # 1. banners.png 로드
     try:
         title_image = load_image('assets/banners.png')
     except:
         print("경고: assets/banners.png 파일을 로드할 수 없습니다.")
         title_image = None
 
-    # 2. 12.png 로드 (배경 이미지)
+    # 2. 12.png 로드
     try:
         decoration_image = load_image('assets/12.png')
     except:
         print("경고: assets/12.png 파일을 로드할 수 없습니다.")
         decoration_image = None
 
-    # 3. [삭제] 폰트 로드 로직 전체 삭제
+    # 3. 폰트 로드 로직 전체 삭제
 
-    # 배경 Y 좌표 및 시간 초기화
     bg_scroll_y = get_canvas_height() // 2
     last_time = get_time()
 
 
 def finish():
-    """타이틀 모드가 종료될 때 호출됩니다. 리소스를 해제합니다."""
     global title_image, decoration_image
     if title_image:
         del title_image
@@ -56,7 +51,6 @@ def finish():
 
 
 def handle_events():
-    """사용자 입력을 처리합니다."""
     events = get_events()
     for event in events:
         if event.type == SDL_QUIT:
@@ -69,7 +63,6 @@ def handle_events():
 
 
 def update():
-    """게임 상태를 업데이트합니다. (배경 스크롤 로직)"""
     global bg_scroll_y, last_time
 
     current_time = get_time()
@@ -81,13 +74,12 @@ def update():
     if delta_time > 0.1:
         delta_time = 0.1
 
+    SCROLL_SPEED = 150
     bg_scroll_y -= SCROLL_SPEED * delta_time
 
     if bg_scroll_y < -canvas_height / 2:
         bg_scroll_y += canvas_height
 
-
-# title_mode.py의 draw() 함수 수정
 
 def draw():
     """화면에 요소를 그립니다."""
@@ -103,24 +95,71 @@ def draw():
         decoration_image.draw(center_x, bg_scroll_y, canvas_width, canvas_height)
         decoration_image.draw(center_x, bg_scroll_y + canvas_height, canvas_width, canvas_height)
 
-    # 2. [수정] 메인 타이틀 이미지 (banners.png 전체) 그리기
+    # 2. 메인 타이틀 이미지 (banners.png의 스프라이트 조합) 그리기
     if title_image is not None:
+        # 스프라이트 크기 (banners.png가 8개의 192x64 타일로 구성되었다고 가정)
+        SPRITE_W, SPRITE_H = 192, 64
 
-        # banners.png 전체를 통째로 캔버스 상단 중앙에 그립니다.
-        title_width = canvas_width * 0.9
-        # 이미지의 원래 비율을 유지하며 높이 계산 (title_image.h와 .w는 로드 후 사용 가능)
-        if title_image.w > 0:
-            title_height = title_width * (title_image.h / title_image.w)
+        # 스프라이트 시트의 맨 윗줄만 그리도록 'bottom' 좌표를 계산
+        if title_image.h > SPRITE_H:
+            SPRITE_BOTTOM_Y = title_image.h - SPRITE_H
         else:
-            title_height = canvas_height * 0.1  # 안전값
+            SPRITE_BOTTOM_Y = 0
 
-        # Y 좌표: 상단에 가깝게 배치
-        draw_y = canvas_height - title_height / 2 - 100
+        # ------------------------------------------------------------------
+        # 🌟 [수정된 부분: 크기 및 위치 조정]
+        # ------------------------------------------------------------------
 
-        # 통째로 그리기 (clip_draw 대신 draw 사용)
-        title_image.draw(center_x, draw_y, title_width, title_height)
+        # [추가] 가로 이동 오프셋 정의 (양수: 오른쪽, 음수: 왼쪽)
+        HORIZONTAL_OFFSET = 50
 
-    # 3. 폰트 로직은 삭제된 상태로 유지
+        # 1. 전체 이미지 조합이 차지할 캔버스 너비 (95% 유지)
+        COMBINED_WIDTH_RATIO = 0.95
+        W_Combined = canvas_width * COMBINED_WIDTH_RATIO
+
+        # 2. 크기 비율 정의: 왼쪽(2.0), 오른쪽(1.0) -> 총 비율 3.0
+        LEFT_RATIO = 2.0
+        TOTAL_RATIO = LEFT_RATIO + 1.0
+
+        # 3. 개별 너비 계산
+        display_width_left = W_Combined * (LEFT_RATIO / TOTAL_RATIO)
+        display_width_right = W_Combined * (1.0 / TOTAL_RATIO)
+
+        # 4. 개별 높이 계산 (비율 유지)
+        display_height_left = display_width_left * (SPRITE_H / SPRITE_W)
+        display_height_right = display_width_right * (SPRITE_H / SPRITE_W)
+
+        # 5. Y 좌표 설정
+        draw_y = canvas_height - display_height_left / 2 - 100
+
+        # 6. X 좌표 계산: center_x에 오프셋을 더하여 전체 조합 위치를 오른쪽으로 이동
+        X_Left_Edge = (center_x + HORIZONTAL_OFFSET) - W_Combined / 2
+
+        # Image 1 (왼쪽)의 중심 X 좌표
+        draw_x_left = X_Left_Edge + display_width_left / 2
+
+        # Image 2 (오른쪽)의 중심 X 좌표
+        draw_x_right = X_Left_Edge + display_width_left + display_width_right / 2
+
+        # ------------------------------------------------------------------
+        # 🌟 [수정 완료]
+        # ------------------------------------------------------------------
+
+        # --- Image 1: 맨 왼쪽 스프라이트 (왼쪽 스프라이트) ---
+        title_image.clip_draw(
+            0, SPRITE_BOTTOM_Y, SPRITE_W, SPRITE_H,
+            draw_x_left, draw_y,  # ⚠️ draw_x_left에 오프셋 영향 반영
+            display_width_left, display_height_left
+        )
+
+        # --- Image 2: 맨 오른쪽 스프라이트 (오른쪽 스프라이트) ---
+        SPRITE_START_X_RIGHT = 1344
+
+        title_image.clip_draw(
+            SPRITE_START_X_RIGHT, SPRITE_BOTTOM_Y, SPRITE_W, SPRITE_H,
+            draw_x_right, draw_y,  # ⚠️ draw_x_right에 오프셋 영향 반영
+            display_width_right, display_height_right
+        )
 
     update_canvas()
 
