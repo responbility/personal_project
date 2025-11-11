@@ -7,7 +7,7 @@ import title_mode
 from pico2d import open_canvas, close_canvas
 
 # 캔버스 크기 및 설정
-open_canvas(1024, 768)
+open_canvas(576,1024)
 
 # set_canvas_draw_mode를 호출하는 줄도 제거하거나 주석 처리합니다.
 # set_canvas_draw_mode(SDM_SYNCHRONOUS) # 제거 또는 주석 처리
