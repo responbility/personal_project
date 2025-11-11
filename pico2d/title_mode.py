@@ -2,54 +2,66 @@
 
 import game_framework
 from pico2d import *
-# play_mode가 같은 폴더에 있다고 가정하고 import 합니다.
 import play_mode
 
-# 이 모드의 이름을 정의합니다.
 name = "TitleMode"
 
 # 사용할 전역 변수
 title_image = None  # banners.png
-decoration_image = None  # 12.png
+decoration_image = None  # 12.png (배경으로 사용)
 font = None  # 폰트 객체
+
+# 배경 스크롤을 위한 변수
+bg_scroll_y = 0  # 배경 이미지의 현재 Y 좌표 (중앙 기준)
+SCROLL_SPEED = 150  # 스크롤 속도 (픽셀/초)
+
+# [수정] 시간 계산을 위한 전역 변수 추가
+last_time = 0.0  # 이전 프레임 시간을 저장
 
 
 # --- 모드 함수 정의 ---
 
 def init():
-    """타이틀 모드가 시작될 때 호출됩니다. 이미지와 폰트를 로드합니다."""
-    global title_image, decoration_image, font
+    """타이틀 모드가 시작될 때 호출됩니다."""
+    global title_image, decoration_image, font, bg_scroll_y, last_time
 
-    # 1. banners.png 로드 (타이틀 이미지)
+    # 1. banners.png 로드
     try:
         title_image = load_image('assets/banners.png')
     except:
         print("경로 오류: assets/banners.png 파일을 로드할 수 없습니다.")
         title_image = None
 
-    # 2. 12.png 로드 (장식 이미지)
+    # 2. 12.png 로드
     try:
         decoration_image = load_image('assets/12.png')
     except:
         print("경로 오류: assets/12.png 파일을 로드할 수 없습니다.")
         decoration_image = None
 
-    # 3. 폰트 로드 (ENCR10B.TTF 파일이 없을 경우 대비하여 로드 로직을 수정합니다.)
+    # 3. 폰트 로드 (ENCR10B.TTF 및 KOF.TTF 모두 로드 실패하는 문제 방지)
     try:
         font = load_font('assets/ENCR10B.TTF', 30)
     except:
-        # assets 폴더에서 로드 실패 시, 기본 경로 시도 (KOF.TTF 또는 ENCR10B.TTF)
         try:
-            font = load_font('ENCR10B.TTF', 30)
+            # KOF.TTF 로드 시도
+            font = load_font('KOF.TTF', 30)
+            print("경고: ENCR10B.TTF 로드 실패. KOF.TTF 폰트로 대체합니다.")
         except:
-            print("경고: ENCR10B.TTF 폰트를 로드할 수 없습니다. 기본 텍스트를 사용합니다.")
-            font = None  # 폰트가 없을 경우 None으로 설정
+            # 두 폰트 모두 로드 실패 시, 강제 종료 방지
+            print("경고: 폰트를 로드할 수 없어 시작 메시지를 그릴 수 없습니다.")
+            font = None
+
+    # 배경 Y 좌표 초기화
+    bg_scroll_y = get_canvas_height() // 2
+
+    # [수정] last_time 초기화: init 시점에 현재 시간으로 설정
+    last_time = get_time()
 
 
 def finish():
-    """타이틀 모드가 종료될 때 호출됩니다. 리소스를 해제합니다."""
+    """타이틀 모드가 종료될 때 호출됩니다."""
     global title_image, decoration_image
-    # 이미지 객체가 존재할 경우에만 del을 수행합니다.
     if title_image:
         del title_image
     if decoration_image:
@@ -57,7 +69,7 @@ def finish():
 
 
 def handle_events():
-    """사용자 입력(키보드, 마우스)을 처리합니다. (이전 오류 해결을 위해 추가)"""
+    """사용자 입력을 처리합니다."""
     events = get_events()
     for event in events:
         if event.type == SDL_QUIT:
@@ -66,64 +78,67 @@ def handle_events():
             if event.key == SDLK_ESCAPE:
                 game_framework.quit()
             elif event.key == SDLK_SPACE:
-                # Space 키를 누르면 다음 모드(play_mode)로 전환
                 game_framework.change_mode(play_mode)
 
 
 def update():
-    """게임 상태를 업데이트합니다. (타이틀 모드에서는 비워둡니다)"""
-    pass
+    """게임 상태를 업데이트합니다. (배경 스크롤 로직)"""
+    global bg_scroll_y, last_time
 
+    # -----------------------------------------------------------------
+    # [수정] delta_time 직접 계산 (NameError 해결)
+    current_time = get_time()
+    delta_time = current_time - last_time
+    last_time = current_time
+    # -----------------------------------------------------------------
 
-# title_mode.py의 draw() 함수 수정
+    canvas_height = get_canvas_height()
 
-# title_mode.py의 draw() 함수
+    # delta_time이 비정상적으로 클 경우 (예: 디버깅)를 대비해 제한
+    if delta_time > 0.1:
+        delta_time = 0.1
 
-# title_mode.py의 draw() 함수 수정
+    # 1. Y 좌표 감소 (아래로 이동)
+    bg_scroll_y -= SCROLL_SPEED * delta_time
+
+    # 2. 루프 조건 확인 (무한 스크롤)
+    if bg_scroll_y < -canvas_height / 2:
+        bg_scroll_y += canvas_height  # 높이만큼 더해서 맨 위로 순간 이동
+
 
 def draw():
     """화면에 요소를 그립니다."""
-    global title_image, decoration_image, font
+    global title_image, decoration_image, font, bg_scroll_y
     clear_canvas()
 
     center_x = get_canvas_width() // 2
     center_y = get_canvas_height() // 2
-
     canvas_width = get_canvas_width()
     canvas_height = get_canvas_height()
 
-    # 1. 배경 이미지 (decoration_image, 12.png)를 화면 전체에 꽉 채워 그리기
+    # 1. 배경 이미지 (12.png)를 스크롤하며 그리기 (draw(x, y, w, h) 사용)
     if decoration_image is not None:
-        decoration_image.draw(center_x, center_y, canvas_width, canvas_height)
+        # Image 1: 현재 스크롤 위치
+        decoration_image.draw(center_x, bg_scroll_y, canvas_width, canvas_height)
 
-    # ----------------------------------------------------
-    # 2. 메인 타이틀 이미지 (banners.png) 그리기 (크기 확대)
-    # ----------------------------------------------------
+        # Image 2: Image 1 위쪽에 배치하여 끊김 없이 이어지게 함
+        decoration_image.draw(center_x, bg_scroll_y + canvas_height, canvas_width, canvas_height)
+
+    # 2. 메인 타이틀 이미지 (banners.png) 그리기 (높이 50%로 설정)
     if title_image is not None:
-        title_width = canvas_width * 0.8  # 너비는 화면의 80% 유지
-
-        # [수정] 높이 비율을 0.2(20%)에서 0.5(50%)로 크게 조정
+        title_width = canvas_width * 0.8
         title_height = canvas_height * 0.5
-
-        # 타이틀을 배경 위에 그립니다.
-        # draw(x, y, w, h) 형태로 사용
         title_image.draw(center_x, center_y + 150, title_width, title_height)
 
-    # 3. 시작 메시지 그리기
+    # 3. 시작 메시지 그리기 (폰트 로드 성공 시에만)
     if font is not None:
         font.draw(center_x - 200, 100,
                   'Press SPACE to Start', (255, 255, 255))
-    else:
-        pass
 
     update_canvas()
 
 
-def pause():
-    """다른 모드가 위에 쌓일 때 호출됩니다. (이전 오류 해결을 위해 추가)"""
-    pass
+def pause(): pass
 
 
-def resume():
-    """위에 쌓였던 모드가 제거되고 이 모드가 재개될 때 호출됩니다. (이전 오류 해결을 위해 추가)"""
-    pass
+def resume(): pass
