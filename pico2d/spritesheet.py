@@ -35,15 +35,21 @@ class SpriteSheet:
         clip_x = col * self.clip_w
         clip_y = self.image.h - (row * self.clip_h) - self.clip_h
 
+        # rotate는 라디안으로 들어올 수 있으므로, pico2d의 clip_composite_draw는 degree 단위를 사용합니다.
+        # 변환: degree = rotate * (180.0 / pi)
+        try:
+            from math import degrees
+            deg = degrees(rotate)
+        except Exception:
+            deg = 0
+
         if flip:
-            # clip_draw_to_center_x, y, w, h, x, y, w, h
-            self.image.clip_draw_to_center(
-                clip_x, clip_y, self.clip_w, self.clip_h,
-                x, y, target_w, target_h,
-                flip='h'
-            )
+            # 좌우 반전은 clip_composite_draw의 flip 파라미터에 'h'를 전달
+            try:
+                self.image.clip_composite_draw(clip_x, clip_y, self.clip_w, self.clip_h, deg, 'h', x, y, target_w, target_h)
+            except Exception:
+                # clip_composite_draw가 없으면 fallback으로 그냥 clip_draw
+                self.image.clip_draw(clip_x, clip_y, self.clip_w, self.clip_h, x, y, target_w, target_h)
         else:
-            self.image.draw_clip(
-                clip_x, clip_y, self.clip_w, self.clip_h,
-                x, y, target_w, target_h
-            )
+            # 일반적으로는 clip_draw 사용
+            self.image.clip_draw(clip_x, clip_y, self.clip_w, self.clip_h, x, y, target_w, target_h)

@@ -6,6 +6,8 @@ import game_world
 import grass
 import boy  # boy.py의 Boy 클래스 임포트
 from spritesheet import SpriteSheet
+import os
+import glob
 
 # -------------------------------------------------------------
 
@@ -30,6 +32,15 @@ test_image = None
 CLIP_W, CLIP_H = 30, 30 
 SCALE_FACTOR_DEFAULT = 3.0
 NUM_FRAMES = None
+
+# Ratking 애니메이션(게임에서 자연스럽게 재생할 전용 시트)
+ratking_sheet = None
+RAT_CLIP_W, RAT_CLIP_H = 16, 16
+RAT_FPS = 8.0
+ratking_frame = 0
+ratking_timer = 0.0
+# 게임 내에 크게 보여줄 스케일 (스크린샷처럼 크게 보이게)
+ratking_preview_scale = 8  # 더 크게 보여주기 (스크린샷처럼)
 
 # 단일 프레임을 크게 잘라서 표시할지 여부
 SINGLE_FRAME_MODE = True
@@ -96,7 +107,6 @@ def init():
 
     # 테스트용 스프라이트 시트 로드 (SpriteSheet 사용)
     try:
-        # SpriteSheet 클래스 사용을 위해 임포트가 필요합니다.
         test_image = SpriteSheet('assets/ratking.png', CLIP_W, CLIP_H)
     except Exception:
         try:
@@ -104,6 +114,29 @@ def init():
         except Exception:
             print("경고: ratking 스프라이트 시트 로드 실패. assets/ratking.png 경로를 확인하세요.")
             test_image = None
+
+    # ratking 전용 시트(정확한 클립 사이즈로 로드)
+    global ratking_sheet, ratking_frame, ratking_timer
+    try:
+        ratking_sheet = SpriteSheet('assets/ratking.png', RAT_CLIP_W, RAT_CLIP_H)
+    except Exception:
+        ratking_sheet = None
+    ratking_frame = 0
+    ratking_timer = 0.0
+
+    # 우선: PNG로 분리된 프레임들이 있는지 확인해 로드
+    global ratking_frames
+    frames_dir = os.path.join('assets', 'ratking_frames')
+    ratking_frames = []
+    if os.path.isdir(frames_dir):
+        # 파일명 정렬
+        files = sorted(glob.glob(os.path.join(frames_dir, '*.png')))
+        for f in files:
+            try:
+                img = load_image(f)
+                ratking_frames.append(img)
+            except Exception:
+                pass
 
     print("Play Mode Started: Boy/Grass/UI Loaded")
     # 초기 단일 프레임 위치를 캔버스 중앙으로 설정
@@ -113,6 +146,17 @@ def init():
         SELECT_POS_X, SELECT_POS_Y = get_box_center()
     except Exception:
         SELECT_POS_X, SELECT_POS_Y = 80, 80
+
+    # 폰트 캐시: draw_text에서 매 프레임 로드하는 대신 init에서 한 번만 로드
+    global _cached_font
+    _cached_font = None
+    try:
+        _cached_font = load_font('assets/Consolas.ttf', 16)
+    except Exception:
+        try:
+            _cached_font = load_font('assets/ENCR10B.TTF', 16)
+        except Exception:
+            _cached_font = None
 
 
 def finish():
@@ -223,6 +267,22 @@ def update():
     SELECT_POS_X = max(half_w, min(cw - half_w, SELECT_POS_X))
     SELECT_POS_Y = max(half_h, min(ch - half_h, SELECT_POS_Y))
 
+    # ratking 애니메이션 타이머 업데이트 (ratking_frames 우선)
+    global ratking_timer, ratking_frame
+    try:
+        dt = game_framework.frame_time
+    except Exception:
+        dt = 1.0 / 60.0
+    ratking_timer += dt
+    if ratking_timer >= 1.0 / RAT_FPS:
+        ratking_timer -= 1.0 / RAT_FPS
+        if len(ratking_frames) > 0:
+            ratking_frame = (ratking_frame + 1) % len(ratking_frames)
+        elif ratking_sheet is not None:
+            ratking_frame = (ratking_frame + 1) % ratking_sheet.cols
+        else:
+            ratking_frame = (ratking_frame + 1) % 1
+
 
 def draw():
     """화면에 모든 요소를 그립니다."""
@@ -237,66 +297,27 @@ def draw():
     game_world.draw()
 
     # ----------------------------------------------------
-    # 🚨 스프라이트 시트 분할 테스트 출력 코드 (건드리지 않음) 🚨
+    # 단일 애니메이션(크게) 출력: 왼쪽 아래 박스 중심에 표시
     # ----------------------------------------------------
-    if test_image is not None:
+    try:
+        # 큰 애니메이션을 SELECT_POS_X/Y 위치로 그려서 WASD로 이동 가능하게 함
+        display_w = RAT_CLIP_W * ratking_preview_scale
+        display_h = RAT_CLIP_H * ratking_preview_scale
 
-        # 단일 프레임 모드: 한 프레임만 크게 중앙에 출력
-        if SINGLE_FRAME_MODE:
+        # SELECT_POS_X/Y는 프레임 중심 좌표로 사용되도록 init에서 설정됩니다.
+        display_x = SELECT_POS_X if SELECT_POS_X is not None else (40 + display_w / 2)
+        display_y = SELECT_POS_Y if SELECT_POS_Y is not None else (canvas_height - 120 - display_h / 2)
 
-            # SpriteSheet 클래스를 사용한다고 가정
-            SPRITE_W, SPRITE_H = CLIP_W, CLIP_H # CLIP_W, CLIP_H 사용
-            frame_idx = SELECT_FRAME_INDEX
-
-            global SELECT_POS_X, SELECT_POS_Y
-
-            # SpriteSheet.draw_frame을 호출하도록 유지
-            try:
-                test_image.draw_frame(
-                    frame_idx,
-                    SELECT_POS_X,
-                    SELECT_POS_Y,
-                    SPRITE_W * SELECT_SCALE,
-                    SPRITE_H * SELECT_SCALE,
-                    flip=False,
-                    rotate=0
-                )
-            except Exception:
-                # SpriteSheet가 아니거나 메서드 오류 시, 임시 clip_draw로 대체
-                test_image.clip_draw(
-                    frame_idx * SPRITE_W,
-                    0,
-                    SPRITE_W,
-                    SPRITE_H,
-                    SELECT_POS_X,
-                    SELECT_POS_Y,
-                    SPRITE_W * SELECT_SCALE,
-                    SPRITE_H * SELECT_SCALE
-                )
-
-
+        if len(ratking_frames) > 0:
+            img = ratking_frames[ratking_frame % len(ratking_frames)]
+            img.draw(display_x, display_y, display_w, display_h)
+        elif ratking_sheet is not None:
+            idx = ratking_frame % (ratking_sheet.cols if ratking_sheet else 1)
+            ratking_sheet.draw_frame(idx, display_x, display_y, display_w, display_h)
         else:
-            # 전체 프레임 출력 모드 (SpriteSheet 필요)
-            SCALE_FACTOR = SCALE_FACTOR_DEFAULT
-            try:
-                total_frames = test_image.cols * test_image.rows
-                frames_per_row = test_image.cols
-                DISPLAY_Y = canvas_height - 150
-                start_x = 100
-                padding = 10
-
-                for idx in range(total_frames):
-                    col = idx % frames_per_row
-                    row = idx // frames_per_row
-                    x = start_x + col * (CLIP_W * SCALE_FACTOR + padding)
-                    y = DISPLAY_Y - row * (CLIP_H * SCALE_FACTOR + padding)
-                    test_image.draw_frame(idx, x, y, CLIP_W * SCALE_FACTOR, CLIP_H * SCALE_FACTOR, flip=False, rotate=0)
-
-                    if y < 0:
-                        break
-            except Exception:
-                pass
-    # ----------------------------------------------------
+            pass
+    except Exception:
+        pass
 
     # --- UI 높이 설정 ---
     display_toolbar_height = TOOLBAR_H * 2
@@ -361,21 +382,12 @@ def draw_status_text(canvas_width, canvas_height):
 
 def draw_text(text, x, y, align="left"):
     """주어진 텍스트를 주어진 위치에 그립니다."""
-    # 안전하게 폰트를 로드합니다. 없으면 대체 폰트를 시도하고, 그래도 없으면 텍스트 출력은 생략합니다.
-    font = None
-    try:
-        font = load_font('assets/Consolas.ttf', 16)
-    except Exception:
-        try:
-            font = load_font('assets/ENCR10B.TTF', 16)
-        except Exception:
-            font = None
-
+    # init()에서 로드한 캐시 폰트 사용(없으면 조용히 리턴)
+    global _cached_font
+    font = globals().get('_cached_font', None)
     if font is None:
-        # 폰트가 없을 때의 대체 출력 로직 (생략)
         return
 
-    # 폰트가 있는 경우 정상적으로 그립니다.
     text_width = font.get_text_width(text)
     text_height = font.get_text_height(text)
 

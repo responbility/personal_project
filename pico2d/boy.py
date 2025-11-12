@@ -27,6 +27,11 @@ ACTION_PER_TIME = 1.0 / TIME_PER_ACTION
 # 걷기 애니메이션 (ratking.png의 첫 번째 줄 7프레임: 0~6)
 FRAMES_PER_ACTION = 7
 
+# 스프라이트 시트의 행(row) 매핑(0: 상단 행, 1: 다음 행 ...)
+IDLE_ROW = 0
+RUN_ROW = 1
+SLEEP_ROW = 2
+
 # 상태별 애니메이션 속도 설정 (걷기 사이클을 이용)
 IDLE_ANIM_SPEED_MULTIPLIER = 0.3  # 유휴 상태에서는 애니메이션 속도를 늦춤
 SLEEP_ANIM_SPEED_MULTIPLIER = 0.5  # 수면 상태에서는 애니메이션 속도를 중간으로 설정
@@ -79,8 +84,13 @@ class Idle:
             self.boy.state_machine.handle_state_event(('TIMEOUT', None))
 
     def draw(self):
-        # SpriteSheet의 draw_frame 사용 (frame 인덱스는 0-based)
-        self.boy.image.draw_frame(int(self.boy.frame), self.boy.x, self.boy.y, TARGET_W, TARGET_H, flip=(self.boy.face_dir == -1), rotate=0)
+        # SpriteSheet에서 특정 행(row)을 사용하도록 전역 인덱스를 계산하여 그립니다.
+        try:
+            cols = self.boy.image.cols
+        except Exception:
+            cols = 7
+        idx = IDLE_ROW * cols + int(self.boy.frame)
+        self.boy.image.draw_frame(idx, self.boy.x, self.boy.y, TARGET_W, TARGET_H, flip=(self.boy.face_dir == -1), rotate=0)
 
 
 class Sleep:
@@ -98,9 +108,14 @@ class Sleep:
     def handle_event(self, event): pass
 
     def draw(self):
-        # 누워서 자는 상태는 회전 적용
+        # 누워서 자는 상태는 회전 적용; SLEEP_ROW 사용
         rotate_angle = 3.141592 / 2 if self.boy.face_dir == 1 else -3.141592 / 2
-        self.boy.image.draw_frame(int(self.boy.frame), self.boy.x, self.boy.y - HALF_TARGET_H, TARGET_W, TARGET_H, flip=(self.boy.face_dir == -1), rotate=rotate_angle)
+        try:
+            cols = self.boy.image.cols
+        except Exception:
+            cols = 7
+        idx = SLEEP_ROW * cols + int(self.boy.frame)
+        self.boy.image.draw_frame(idx, self.boy.x, self.boy.y - HALF_TARGET_H, TARGET_W, TARGET_H, flip=(self.boy.face_dir == -1), rotate=rotate_angle)
 
 
 class Run:
@@ -130,7 +145,13 @@ class Run:
         self.boy.x = clamp(HALF_TARGET_H, self.boy.x, canvas_width - HALF_TARGET_H)
 
     def draw(self):
-        self.boy.image.draw_frame(int(self.boy.frame), self.boy.x, self.boy.y, TARGET_W, TARGET_H, flip=(self.boy.face_dir == -1), rotate=0)
+        # RUN_ROW 사용
+        try:
+            cols = self.boy.image.cols
+        except Exception:
+            cols = 7
+        idx = RUN_ROW * cols + int(self.boy.frame)
+        self.boy.image.draw_frame(idx, self.boy.x, self.boy.y, TARGET_W, TARGET_H, flip=(self.boy.face_dir == -1), rotate=0)
 
 
 # --- 메인 클래스 정의 ---
