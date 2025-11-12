@@ -79,34 +79,41 @@ def draw():
 
     # 1. 메인 캐릭터 그리기 (임시)
     if character_image is not None:
-        # 캔버스 중앙에 배치
         character_image.clip_draw(0, 0, 32, 32, character_x, character_y)
+
+    # --- UI 높이 설정 ---
+    # 툴바: 상단에 50픽셀 높이로 배치
+    display_toolbar_height = TOOLBAR_H * 2
+    display_status_pane_height = STATUS_PANE_H * 1.0
+
+    # 상태 창을 바닥에서 띄울 여백 (픽셀 단위)
+    BOTTOM_PADDING = 10
+    # --------------------
 
     # 2. 툴바 그리기 (상단 중앙 배치)
     if toolbar_image is not None:
         # 툴바의 중심 Y 좌표 계산: 캔버스 높이 - (툴바 높이 / 2)
-        display_toolbar_height = 100 # 지정된 높이로 수정 하겠습ㄴ다
-        toolbar_center_y = canvas_height - (TOOLBAR_H / 2)
+        toolbar_center_y = canvas_height - (display_toolbar_height / 2)
 
-        # 툴바 이미지 전체를 캔버스 너비와 툴바 높이에 맞게 늘려 그립니다.
+        # 툴바 이미지 전체를 캔버스 너비와 지정된 높이에 맞게 그립니다.
         toolbar_image.draw(
-            canvas_width / 2,  # X: 중앙에 위치
-            toolbar_center_y,  # Y: 상단에 위치
-            canvas_width,  # W: 캔버스 너비에 맞춤 (576)
-            display_toolbar_height #
+            canvas_width / 2,
+            toolbar_center_y,
+            canvas_width,
+            display_toolbar_height
         )
 
-    # 3. 상태 창 그리기 (하단 중앙 배치)
+    # 3. 상태 창 그리기 (하단 중앙 배치, 여백 적용)
     if status_pane_image is not None:
-        # 상태 창의 중심 Y 좌표 계산: (상태 창 높이 / 2)
-        status_pane_center_y = STATUS_PANE_H / 2
+        # 상태 창의 중심 Y 좌표 계산: (상태 창 높이 / 2) + 하단 여백
+        status_pane_center_y = (display_status_pane_height / 2) + BOTTOM_PADDING
 
-        # 상태 창 이미지 전체를 캔버스 너비와 상태 창 높이에 맞게 늘려 그립니다.
+        # 상태 창 이미지 전체를 캔버스 너비와 지정된 높이에 맞게 그립니다.
         status_pane_image.draw(
             canvas_width / 2,  # X: 중앙에 위치
-            status_pane_center_y,  # Y: 하단에 위치
+            status_pane_center_y,  # Y: 바닥에서 10px 띄워진 위치
             canvas_width,  # W: 캔버스 너비에 맞춤 (576)
-            STATUS_PANE_H  # H: 원본 높이 (80)
+            display_status_pane_height  # H: 원본 높이 (80)
         )
 
     update_canvas()
