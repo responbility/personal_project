@@ -4,8 +4,8 @@ from pico2d import *
 import game_world
 
 # 맵의 폭과 높이 (충돌 영역에 사용됨)
-MAP_WIDTH = 576
-MAP_HEIGHT = 1024
+MAP_WIDTH = 1600
+MAP_HEIGHT = 50
 
 class Grass:
     def __init__(self):
