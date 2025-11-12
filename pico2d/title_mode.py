@@ -199,6 +199,7 @@ def draw(): # 🌟🌟🌟 ddef -> def로 수정되었습니다! 🌟🌟🌟
             DASHBOARD_HEIGHT
         )
 
+
     update_canvas()
 
 
