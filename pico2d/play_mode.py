@@ -1,5 +1,3 @@
-# play_mode.py
-
 import game_framework
 from pico2d import *
 import title_mode
@@ -28,7 +26,8 @@ grass_instance = None
 
 # 🚨 스프라이트 분할 테스트를 위한 전역 변수 🚨
 test_image = None
-CLIP_W, CLIP_H = 16, 16
+# CLIP_W, CLIP_H를 30x30으로 수정 (boy.py와 일치)
+CLIP_W, CLIP_H = 30, 30 
 SCALE_FACTOR_DEFAULT = 3.0
 NUM_FRAMES = None
 
@@ -246,7 +245,7 @@ def draw():
         if SINGLE_FRAME_MODE:
 
             # SpriteSheet 클래스를 사용한다고 가정
-            SPRITE_W, SPRITE_H = 30, 30
+            SPRITE_W, SPRITE_H = CLIP_W, CLIP_H # CLIP_W, CLIP_H 사용
             frame_idx = SELECT_FRAME_INDEX
 
             global SELECT_POS_X, SELECT_POS_Y

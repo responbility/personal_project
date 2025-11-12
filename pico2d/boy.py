@@ -1,5 +1,3 @@
-# boy.py
-
 from pico2d import load_image, get_time, load_font, draw_rectangle, clamp, get_canvas_width
 from sdl2 import SDL_KEYDOWN, SDLK_SPACE, SDLK_RIGHT, SDL_KEYUP, SDLK_LEFT, SDL_QUIT
 
@@ -25,7 +23,14 @@ RUN_SPEED_PPS = (RUN_SPEED_MPS * PIXEL_PER_METER)
 
 TIME_PER_ACTION = 0.5
 ACTION_PER_TIME = 1.0 / TIME_PER_ACTION
+
+# 걷기 애니메이션 (ratking.png의 첫 번째 줄 7프레임: 0~6)
 FRAMES_PER_ACTION = 7
+
+# 상태별 애니메이션 속도 설정 (걷기 사이클을 이용)
+IDLE_ANIM_SPEED_MULTIPLIER = 0.3  # 유휴 상태에서는 애니메이션 속도를 늦춤
+SLEEP_ANIM_SPEED_MULTIPLIER = 0.5  # 수면 상태에서는 애니메이션 속도를 중간으로 설정
+RUN_ANIM_SPEED_MULTIPLIER = 1.0  # 달리기 상태에서는 정상 속도
 
 
 # --- 이벤트 정의 함수 ---
@@ -67,8 +72,9 @@ class Idle:
         if space_down(e): self.boy.fire_ball()
 
     def do(self):
+        # 걷기 사이클 프레임(0-6)을 느린 속도로 순환시켜 유휴(Idle) 상태 애니메이션을 구현
         self.boy.frame = (
-                                     self.boy.frame + FRAMES_PER_ACTION * ACTION_PER_TIME * game_framework.frame_time) % FRAMES_PER_ACTION
+                                     self.boy.frame + FRAMES_PER_ACTION * ACTION_PER_TIME * game_framework.frame_time * IDLE_ANIM_SPEED_MULTIPLIER) % FRAMES_PER_ACTION
         if get_time() - self.boy.wait_time > 3:
             self.boy.state_machine.handle_state_event(('TIMEOUT', None))
 
@@ -85,8 +91,9 @@ class Sleep:
     def exit(self, e): pass
 
     def do(self):
+        # 걷기 사이클 프레임(0-6)을 중간 속도로 순환시켜 수면(Sleep) 상태 애니메이션을 구현
         self.boy.frame = (
-                                     self.boy.frame + FRAMES_PER_ACTION * ACTION_PER_TIME * game_framework.frame_time) % FRAMES_PER_ACTION
+                                     self.boy.frame + FRAMES_PER_ACTION * ACTION_PER_TIME * game_framework.frame_time * SLEEP_ANIM_SPEED_MULTIPLIER) % FRAMES_PER_ACTION
 
     def handle_event(self, event): pass
 
@@ -110,8 +117,9 @@ class Run:
         if space_down(e): self.boy.fire_ball()
 
     def do(self):
+        # 걷기 사이클 프레임(0-6)을 정상 속도로 순환시켜 달리기(Run) 상태 애니메이션을 구현
         self.boy.frame = (
-                                     self.boy.frame + FRAMES_PER_ACTION * ACTION_PER_TIME * game_framework.frame_time) % FRAMES_PER_ACTION
+                                     self.boy.frame + FRAMES_PER_ACTION * ACTION_PER_TIME * game_framework.frame_time * RUN_ANIM_SPEED_MULTIPLIER) % FRAMES_PER_ACTION
         self.boy.x += self.boy.dir * RUN_SPEED_PPS * game_framework.frame_time
 
         try:
@@ -143,8 +151,7 @@ class Boy:
         self.face_dir = 1
         self.dir = 0
 
-        # 이미지(스프라이트 시트) 로드: 'assets/ratking.png' 사용
-        # 프레임 크기는 CLIP_W, CLIP_H 상수 사용
+        # 이미지(스프라이트 시트) 로드: 'assets/ratking.png' 사용. 프레임 크기 30x30
         try:
             self.image = SpriteSheet('assets/ratking.png', CLIP_W, CLIP_H)
         except Exception:
@@ -191,11 +198,6 @@ class Boy:
         self.state_machine.handle_state_event(('INPUT', event))
 
     def draw(self):
-        # 상태 머신이 애니메이션을 관리하도록 두되, draw 시 sprite sheet를 사용하도록 변경
-        # 상태 클래스의 draw()에서 기존 clip_composite_draw 호출을 계속 사용하던 부분을
-        # 스프라이트 시트 사용으로 유지하려면 상태 클래스 내부에서 frame 계산 후
-        # self.boy.image.draw_frame(...)을 호출하도록 수정해야 합니다.
-        # 여기서는 상태 머신 draw가 호출되도록 두고, 상태 클래스에서 image.draw_frame을 사용합니다.
         self.state_machine.draw()
 
         if self.font:
