@@ -85,6 +85,7 @@ def draw():
     # 2. 툴바 그리기 (상단 중앙 배치)
     if toolbar_image is not None:
         # 툴바의 중심 Y 좌표 계산: 캔버스 높이 - (툴바 높이 / 2)
+        display_toolbar_height = 100 # 지정된 높이로 수정 하겠습ㄴ다
         toolbar_center_y = canvas_height - (TOOLBAR_H / 2)
 
         # 툴바 이미지 전체를 캔버스 너비와 툴바 높이에 맞게 늘려 그립니다.
@@ -92,7 +93,7 @@ def draw():
             canvas_width / 2,  # X: 중앙에 위치
             toolbar_center_y,  # Y: 상단에 위치
             canvas_width,  # W: 캔버스 너비에 맞춤 (576)
-            TOOLBAR_H  # H: 원본 높이 (50)
+            display_toolbar_height #
         )
 
     # 3. 상태 창 그리기 (하단 중앙 배치)
