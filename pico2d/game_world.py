@@ -1,77 +1,48 @@
-world = [[] for _ in range(4)]
+# game_world.py
 
-def add_object(o, depth = 0):
-    world[depth].append(o)
+# 게임 객체를 저장하는 레이어 리스트
+objects = []
+NUM_LAYERS = 2  # 0: 배경, 1: 캐릭터/몬스터 등으로 사용
 
 
-def add_objects(ol, depth = 0):
-    world[depth] += ol
+def init():
+    """게임 월드를 초기화하고 레이어를 준비합니다."""
+    global objects
+    objects = [[] for _ in range(NUM_LAYERS)]
+
+
+def add_object(obj, layer):
+    """객체를 지정된 레이어에 추가합니다."""
+    if layer >= NUM_LAYERS:
+        # 레이어 수가 부족하면 확장
+        while len(objects) <= layer:
+            objects.append([])
+    objects[layer].append(obj)
 
 
 def update():
-    for layer in world:
-        for o in layer:
-            o.update()
+    """모든 객체의 update() 메서드를 호출합니다."""
+    for layer in objects:
+        for obj in layer:
+            if hasattr(obj, 'update'):
+                obj.update()
 
 
-def render():
-    for layer in world:
-        for o in layer:
-            o.draw()
-def remove_collision_object(o):
-     for pairs in collision_pairs.values():
-         if o in pairs[0]:
-            pairs[0].remove(o)
-         if o in pairs[1]:
-            pairs[1].remove(o)
-
-def remove_object(o):
-    for layer in world:
-        if o in layer:
-            layer.remove(o)
-            remove_collision_object(o)
-            return
-    raise ValueError('Cannot delete non existing object')
+def draw():
+    """모든 객체의 draw() 메서드를 호출합니다."""
+    for layer in objects:
+        for obj in layer:
+            if hasattr(obj, 'draw'):
+                obj.draw()
 
 
 def clear():
-    global world
-
-    for layer in world:
+    """모든 객체를 제거합니다."""
+    global objects
+    for layer in objects:
         layer.clear()
+    init()
 
 
-def collision(a,b):
-    left_a, bottom_a, right_a, top_a = a.get_bb()
-    left_b, bottom_b, right_b, top_b = b.get_bb()
-# AABB 충돌 검사
-    if left_a > right_b: return False
-    if right_a < left_b: return False
-    if top_a < bottom_b: return False
-    if bottom_a > top_b: return False
-
-    return True
-
-collision_pairs={}
-
-def add_collision_pair(group,a,b):
-        if group not in collision_pairs:
-            print(f'New collision pair added: {group}')
-            collision_pairs[group] = [ [], [] ]
-        if a:
-            collision_pairs[group][0].append(a)
-        if b:
-            collision_pairs[group][1].append(b)
-
-def handle_collisions():
-    for group, pairs in collision_pairs.items():
-        for a in pairs[0]:
-            for b in pairs[1]:
-                if collision(a,b):
-                    a.handle_collision(group,b)
-                    b.handle_collision(group,a)
-
-
-
-
-    return None
+# 모듈이 로드될 때 바로 초기화
+init()
