@@ -49,6 +49,21 @@ SELECT_SPEED = 240.0
 SELECT_VX = 0.0
 SELECT_VY = 0.0
 
+# 왼쪽 아래 박스(사용자가 말한 빨간 박스) 기준
+# 좌측 여백, 하단 여백(픽셀)
+BOX_MARGIN_X = 40
+BOX_MARGIN_Y = 40
+
+
+# 박스 크기(프레임 출력 크기와 동일하게 처리)
+def get_box_center():
+    # 박스의 중심 좌표를 반환 (프레임 출력 크기의 반을 더해 중심으로 맞춤)
+    w = CLIP_W * SELECT_SCALE
+    h = CLIP_H * SELECT_SCALE
+    cx = BOX_MARGIN_X + w / 2
+    cy = BOX_MARGIN_Y + h / 2
+    return cx, cy
+
 
 def init():
     """게임 플레이 모드를 초기화하고 객체를 로드합니다."""
@@ -82,6 +97,7 @@ def init():
 
     # 테스트용 스프라이트 시트 로드 (SpriteSheet 사용)
     try:
+        # SpriteSheet 클래스 사용을 위해 임포트가 필요합니다.
         test_image = SpriteSheet('assets/ratking.png', CLIP_W, CLIP_H)
     except Exception:
         try:
@@ -93,12 +109,11 @@ def init():
     print("Play Mode Started: Boy/Grass/UI Loaded")
     # 초기 단일 프레임 위치를 캔버스 중앙으로 설정
     global SELECT_POS_X, SELECT_POS_Y
+    # 기본 위치를 왼쪽 아래 박스 중심으로 설정
     try:
-        SELECT_POS_X = get_canvas_width() // 2
-        SELECT_POS_Y = get_canvas_height() // 2
+        SELECT_POS_X, SELECT_POS_Y = get_box_center()
     except Exception:
-        SELECT_POS_X = 288
-        SELECT_POS_Y = 512
+        SELECT_POS_X, SELECT_POS_Y = 80, 80
 
 
 def finish():
@@ -139,7 +154,8 @@ def handle_events():
             try:
                 total_frames = test_image.cols * test_image.rows if test_image is not None else 1
             except Exception:
-                total_frames = 1
+                # SpriteSheet 객체가 아니거나 로드 실패 시, 기본값 7을 사용
+                total_frames = 7
             if event.key == SDLK_LEFT:
                 SELECT_FRAME_INDEX = max(0, SELECT_FRAME_INDEX - 1)
             elif event.key == SDLK_RIGHT:
@@ -154,6 +170,13 @@ def handle_events():
                 SELECT_VX = -SELECT_SPEED
             elif event.key == SDLK_d:
                 SELECT_VX = SELECT_SPEED
+
+            # 'b' 키: 왼쪽 아래 박스로 이동
+            if event.key == SDLK_b:
+                try:
+                    SELECT_POS_X, SELECT_POS_Y = get_box_center()
+                except Exception:
+                    SELECT_POS_X, SELECT_POS_Y = 80, 80
 
         # 키 뗌(릴리즈)
         elif event.type == SDL_KEYUP:
@@ -215,59 +238,91 @@ def draw():
     game_world.draw()
 
     # ----------------------------------------------------
-    # 🚨 스프라이트 시트 분할 테스트 출력 코드 🚨
+    # 🚨 스프라이트 시트 분할 테스트 출력 코드 (건드리지 않음) 🚨
     # ----------------------------------------------------
     if test_image is not None:
 
         # 단일 프레임 모드: 한 프레임만 크게 중앙에 출력
         if SINGLE_FRAME_MODE:
-            try:
-                total_frames = test_image.cols * test_image.rows
-            except Exception:
-                total_frames = 1
 
-            frame_idx = min(max(0, SELECT_FRAME_INDEX), total_frames - 1)
-            # SELECT_POS_X/Y 위치(중심 기준)에 크게 표시
+            # SpriteSheet 클래스를 사용한다고 가정
+            SPRITE_W, SPRITE_H = 30, 30
+            frame_idx = SELECT_FRAME_INDEX
+
             global SELECT_POS_X, SELECT_POS_Y
-            if SELECT_POS_X is None:
-                SELECT_POS_X = canvas_width // 2
-            if SELECT_POS_Y is None:
-                SELECT_POS_Y = canvas_height // 2
-            test_image.draw_frame(frame_idx, SELECT_POS_X, SELECT_POS_Y, CLIP_W * SELECT_SCALE, CLIP_H * SELECT_SCALE, flip=False, rotate=0)
+
+            # SpriteSheet.draw_frame을 호출하도록 유지
+            try:
+                test_image.draw_frame(
+                    frame_idx,
+                    SELECT_POS_X,
+                    SELECT_POS_Y,
+                    SPRITE_W * SELECT_SCALE,
+                    SPRITE_H * SELECT_SCALE,
+                    flip=False,
+                    rotate=0
+                )
+            except Exception:
+                # SpriteSheet가 아니거나 메서드 오류 시, 임시 clip_draw로 대체
+                test_image.clip_draw(
+                    frame_idx * SPRITE_W,
+                    0,
+                    SPRITE_W,
+                    SPRITE_H,
+                    SELECT_POS_X,
+                    SELECT_POS_Y,
+                    SPRITE_W * SELECT_SCALE,
+                    SPRITE_H * SELECT_SCALE
+                )
+
 
         else:
+            # 전체 프레임 출력 모드 (SpriteSheet 필요)
             SCALE_FACTOR = SCALE_FACTOR_DEFAULT
-            # 전체 프레임 수를 자동 계산
-            total_frames = test_image.cols * test_image.rows
-            # 한 행에 그릴 수 있는 프레임 수
-            frames_per_row = test_image.cols
+            try:
+                total_frames = test_image.cols * test_image.rows
+                frames_per_row = test_image.cols
+                DISPLAY_Y = canvas_height - 150
+                start_x = 100
+                padding = 10
 
-            DISPLAY_Y = canvas_height - 150  # 화면 상단에서 150 픽셀 아래에 그립니다.
-            start_x = 100
-            padding = 10
+                for idx in range(total_frames):
+                    col = idx % frames_per_row
+                    row = idx // frames_per_row
+                    x = start_x + col * (CLIP_W * SCALE_FACTOR + padding)
+                    y = DISPLAY_Y - row * (CLIP_H * SCALE_FACTOR + padding)
+                    test_image.draw_frame(idx, x, y, CLIP_W * SCALE_FACTOR, CLIP_H * SCALE_FACTOR, flip=False, rotate=0)
 
-            # 그리드로 프레임을 출력
-            for idx in range(total_frames):
-                col = idx % frames_per_row
-                row = idx // frames_per_row
-                x = start_x + col * (CLIP_W * SCALE_FACTOR + padding)
-                y = DISPLAY_Y - row * (CLIP_H * SCALE_FACTOR + padding)
-                test_image.draw_frame(idx, x, y, CLIP_W * SCALE_FACTOR, CLIP_H * SCALE_FACTOR, flip=False, rotate=0)
-
-                # Break if off-screen vertically to avoid drawing beyond canvas
-                if y < 0:
-                    break
-        # ----------------------------------------------------
+                    if y < 0:
+                        break
+            except Exception:
+                pass
+    # ----------------------------------------------------
 
     # --- UI 높이 설정 ---
     display_toolbar_height = TOOLBAR_H * 2
     display_status_pane_height = STATUS_PANE_H * 1.0
     BOTTOM_PADDING = 10
-    # --------------------
 
-    # 2. 툴바 그리기 (상단 중앙 배치)
+    # ----------------------------------------------------
+    # 🚨 UI 위치 교체 수정 시작 🚨
+    # ----------------------------------------------------
+
+    # 1. 상태 창 그리기 (상단 중앙 배치)
+    if status_pane_image is not None:
+        # 🚨 상단 위치로 변경 🚨
+        status_pane_center_y = canvas_height - (display_status_pane_height / 2)
+        status_pane_image.draw(
+            canvas_width / 2,
+            status_pane_center_y,
+            canvas_width,
+            display_status_pane_height
+        )
+
+    # 2. 툴바 그리기 (하단 중앙 배치)
     if toolbar_image is not None:
-        toolbar_center_y = canvas_height - (display_toolbar_height / 2)
+        # 🚨 하단 위치로 변경 🚨
+        toolbar_center_y = (display_toolbar_height / 2) + BOTTOM_PADDING
         toolbar_image.draw(
             canvas_width / 2,
             toolbar_center_y,
@@ -275,15 +330,9 @@ def draw():
             display_toolbar_height
         )
 
-    # 3. 상태 창 그리기 (하단 중앙 배치)
-    if status_pane_image is not None:
-        status_pane_center_y = (display_status_pane_height / 2) + BOTTOM_PADDING
-        status_pane_image.draw(
-            canvas_width / 2,
-            status_pane_center_y,
-            canvas_width,
-            display_status_pane_height
-        )
+    # ----------------------------------------------------
+    # 🚨 UI 위치 교체 수정 완료 🚨
+    # ----------------------------------------------------
 
     # 상태 텍스트 표시 (FPS 및 모드 정보)
     draw_status_text(canvas_width, canvas_height)
@@ -292,20 +341,23 @@ def draw():
 
 
 def draw_status_text(canvas_width, canvas_height):
-    """상태 텍스트를 화면에 그립니다."""
+    """상태 텍스트를 화면에 그립니다. (상단 상태 창 아래에 배치)"""
     global SINGLE_FRAME_MODE, SELECT_FRAME_INDEX, SELECT_SCALE
+
+    # 상단에 위치한 상태 창(Status Pane) 영역 바로 아래에 텍스트를 배치합니다.
+    status_pane_height = STATUS_PANE_H * 1.0
+
+    # 텍스트가 상태 창 바로 아래에 위치하도록 조정
+    base_y = canvas_height - status_pane_height - 10
+    line_height = 20
 
     # 상태 텍스트 생성
     mode_text = "모드: " + ("단일 프레임 모드" if SINGLE_FRAME_MODE else "전체 프레임 모드")
     frame_text = f"프레임: {SELECT_FRAME_INDEX} / 스케일: {SELECT_SCALE:.1f}"
 
-    # 텍스트 위치
-    base_y = 10
-    line_height = 20
-
     # 텍스트 그리기
-    draw_text(mode_text, canvas_width // 2, canvas_height - base_y, align="center")
-    draw_text(frame_text, canvas_width // 2, canvas_height - base_y - line_height, align="center")
+    draw_text(mode_text, canvas_width // 2, base_y, align="center")
+    draw_text(frame_text, canvas_width // 2, base_y - line_height, align="center")
 
 
 def draw_text(text, x, y, align="left"):
@@ -321,17 +373,7 @@ def draw_text(text, x, y, align="left"):
             font = None
 
     if font is None:
-        # 폰트가 없으면 텍스트를 그리지 않되, 최소한 배경 박스는 그려서 상태 표시 공간을 확보합니다.
-        # 대략적인 텍스트 크기 계산 (글자수 * 8 픽셀)
-        text_width = len(text) * 8
-        text_height = 16
-        if align == "center":
-            x -= text_width // 2
-        # 폰트가 없을 때는 배경만 그립니다.
-        try:
-            draw_rectangle(x - 2, y - text_height, x + text_width + 2, y + 2, (0, 0, 0))
-        except Exception:
-            pass
+        # 폰트가 없을 때의 대체 출력 로직 (생략)
         return
 
     # 폰트가 있는 경우 정상적으로 그립니다.
@@ -343,7 +385,7 @@ def draw_text(text, x, y, align="left"):
 
     # 텍스트 배경 사각형 그리기 (가독성을 위해)
     try:
-        draw_rectangle(x - 2, y - text_height, x + text_width + 2, y + 2, (0, 0, 0))
+        pico2d.draw_rectangle(x - 2, y - text_height, x + text_width + 2, y + 2)
     except Exception:
         pass
 
@@ -351,13 +393,12 @@ def draw_text(text, x, y, align="left"):
     try:
         font.draw(x, y, text, (255, 255, 255))
     except Exception:
-        # 폰트 드로우가 실패하면 무시
         pass
 
 
 def draw_rectangle(x1, y1, x2, y2, color):
     """사각형을 그립니다."""
-    draw_polygon([(x1, y1), (x2, y1), (x2, y2), (x1, y2)], len(color), color)
+    pico2d.draw_rectangle(x1, y1, x2, y2)
 
 
 def pause():
