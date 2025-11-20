@@ -1,4 +1,5 @@
 from pico2d import load_image
+import os
 
 
 class SpriteSheet:
@@ -7,7 +8,28 @@ class SpriteSheet:
     """
 
     def __init__(self, image_path, clip_w, clip_h):
-        self.image = load_image(image_path)
+        # image_path may be relative to project root; try module-relative assets folder if not found
+        resolved = image_path
+        try:
+            if not os.path.isfile(resolved):
+                base_assets = os.path.join(os.path.dirname(__file__), 'assets')
+                candidate = os.path.join(base_assets, image_path)
+                if os.path.isfile(candidate):
+                    resolved = candidate
+                else:
+                    # if image_path already contains 'assets/', try stripping it
+                    candidate2 = os.path.join(base_assets, os.path.basename(image_path))
+                    if os.path.isfile(candidate2):
+                        resolved = candidate2
+        except Exception:
+            pass
+
+        try:
+            self.image = load_image(resolved)
+            print(f"DEBUG: SpriteSheet loaded: {resolved}")
+        except Exception as e:
+            print(f"ERROR: SpriteSheet failed to load '{image_path}' -> tried '{resolved}': {e}")
+            raise
         self.clip_w = clip_w
         self.clip_h = clip_h
         self.cols = self.image.w // clip_w

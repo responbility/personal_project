@@ -1,6 +1,6 @@
 # game_framework.py
 
-from pico2d import delay, open_canvas, close_canvas, hide_cursor  # time 모듈과 함께 사용
+from pico2d import delay, open_canvas, close_canvas, hide_cursor, clear_canvas, update_canvas # time 모듈과 함께 사용
 import time
 
 running = None
@@ -32,10 +32,24 @@ def run(start_mode):
         last_time = current_time
         # -----------------------------
 
+        # 디버그: 현재 최상위 모드 이름 출력 (빠르게 확인하려면 콘솔을 살펴보세요)
+        try:
+            top_name = stack[-1].name if (stack and hasattr(stack[-1], 'name')) else str(type(stack[-1]))
+        except Exception:
+            top_name = 'UNKNOWN'
+        print(f"DEBUG: game_framework loop - top_mode={top_name} frame_time={frame_time:.4f}")
+
         # 현재 모드의 handle_events, update, draw 함수 호출
-        stack[-1].handle_events()
-        stack[-1].update()
-        stack[-1].draw()
+        try:
+            # **주의: 대부분의 pico2d 프로젝트에서는 모드 내부의 draw()에서 clear_canvas()와 update_canvas()를 처리합니다.**
+            # 여기서는 모드의 draw() 함수만 호출합니다.
+            # 모드의 draw() 함수 내부에 clear_canvas()와 update_canvas()가 있는지 확인하세요.
+            stack[-1].handle_events()
+            stack[-1].update()
+            stack[-1].draw()
+        except Exception as e:
+            # 예외가 발생해도 바로 종료되지 않도록 로그를 남기고 계속 진행
+            print(f"ERROR: Exception in mode loop: {e}")
 
         # 프레임 속도 조절 (예: 60 FPS)
         if frame_time < 1 / 60.0:
@@ -60,30 +74,24 @@ def change_mode(mode):
     if (len(stack) > 0):
         stack[-1].finish()
         stack.pop()
-
-    # 새 모드 추가 및 초기화
+    # 새 모드 시작 및 추가
     stack.append(mode)
     mode.init()
 
 
 def push_mode(mode):
     global stack
-    # 현재 모드 일시 정지
-    if (len(stack) > 0):
-        stack[-1].pause()
-
-    # 새 모드 추가 및 초기화
+    # 새 모드 시작 및 추가
     stack.append(mode)
     mode.init()
 
 
 def pop_mode():
     global stack
-    # 현재 모드 종료 및 제거
     if (len(stack) > 0):
+        # 현재 모드 종료 및 제거
         stack[-1].finish()
         stack.pop()
-
-    # 이전 모드 재개
-    if (len(stack) > 0):
-        stack[-1].resume()
+    # 스택이 비어 있으면 게임 종료
+    if (len(stack) == 0):
+        quit()
