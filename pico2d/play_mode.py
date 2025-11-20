@@ -1,3 +1,5 @@
+# play_mode.py
+
 import game_framework
 from pico2d import *
 import title_mode
@@ -44,6 +46,33 @@ ratking_preview_scale = 8
 boy_prev_x = None
 
 
+# --- 보조 함수: draw_text, draw_rectangle ---
+
+def draw_text(text, x, y, align='left'):
+    font = globals().get('_cached_font', None)
+    if font is None:
+        return
+    w = font.get_text_width(text)
+    if align == 'center':
+        x -= w // 2
+    try:
+        font.draw(x, y, text, (255, 255, 255))
+    except Exception:
+        pass
+
+
+def draw_rectangle(x1, y1, x2, y2, color=(255, 0, 0)):
+    # 경계 상자 그리기. pico2d의 draw_rectangle은 기본 색상을 사용하며,
+    # 선 색상을 설정하기 위해서는 draw_line 등의 함수 조합이나 set_line_color 함수가 필요하지만,
+    # 여기서는 간단히 pico2d.draw_rectangle만 사용합니다.
+    try:
+        pico2d.draw_rectangle(x1, y1, x2, y2)
+    except Exception:
+        pass
+
+
+# --- 메인 함수 ---
+
 def get_box_center():
     w = CLIP_W * SELECT_SCALE
     h = CLIP_H * SELECT_SCALE
@@ -60,33 +89,42 @@ def init():
     game_world.init()
 
     # MapManager 사용: 후보 경로 설정
-    base_assets = os.path.join(os.path.dirname(__file__), '..', '소녀픽셀던전', 'gpd_040_B1(1)', 'assets')
-    candidates = [os.path.join(base_assets, 'MAX2.PNG'), os.path.join(base_assets, 'MAX.PNG')]
-    try:
-        # 프로젝트 내부 assets도 후보에 넣음
-        candidates.append(os.path.join(os.path.dirname(__file__), 'assets', 'MAX2.PNG'))
-        candidates.append(os.path.join(os.path.dirname(__file__), 'assets', 'MAX.PNG'))
-    except Exception:
-        pass
+    # 파일 경로를 찾는 안정성을 높이기 위해 현재 파일의 경로를 기준으로 설정합니다.
+    base_dir = os.path.dirname(__file__)
+
+    # 1. '소녀픽셀던전' 폴더 내의 경로
+    base_assets_project = os.path.join(base_dir, '..', '소녀픽셀던전', 'gpd_040_B1(1)', 'assets')
+    candidates = [
+        os.path.join(base_assets_project, 'MAX2.PNG'),
+        os.path.join(base_assets_project, 'MAX.PNG')
+    ]
+
+    # 2. 현재 실행 디렉토리의 'assets' 폴더 내의 경로
+    assets_local = os.path.join(base_dir, 'assets')
+    candidates.append(os.path.join(assets_local, 'MAX2.PNG'))
+    candidates.append(os.path.join(assets_local, 'MAX.PNG'))
 
     # MapManager 인스턴스 생성 및 레이어 0에 추가
+    global map_manager
     try:
-        global map_manager
         map_manager = MapManager(candidates)
-        game_world.add_object(map_manager, 0)
-    except Exception:
+        # map_manager가 세그먼트를 성공적으로 로드했을 때만 월드에 추가합니다.
+        if hasattr(map_manager, 'segments') and len(map_manager.segments) > 0:
+            game_world.add_object(map_manager, 0)
+        else:
+            # 실패하면 map_manager를 None으로 두고 Grass를 사용하도록 처리
+            map_manager = None
+    except Exception as e:
+        print(f"ERROR: MapManager creation failed: {e}")
         map_manager = None
 
-    # Grass (map) - 기존 호환을 위해 남겨둡니다
-    # 만약 MapManager가 성공적으로 로드되었다면, map 이미지를 사용하므로
-    # 기존의 grass 전체 캔버스 이미지는 추가하지 않습니다(덮어씌우는 문제 방지).
+    # Grass (map) - MapManager가 성공하면 사용하지 않습니다.
     grass_instance = None
     try:
-        if map_manager is None:
+        if map_manager is None or len(map_manager.segments) == 0:
             grass_instance = grass.Grass()
             game_world.add_object(grass_instance, 0)
         else:
-            # MapManager가 있으면 grass는 사용하지 않음
             grass_instance = None
     except Exception:
         grass_instance = None
@@ -94,8 +132,7 @@ def init():
     # Boy
     boy_instance = boy.Boy()
     game_world.add_object(boy_instance, 1)
-    print(
-        f"DEBUG: Added boy_instance to game_world layer 1. Layers sizes: {[len(layer) for layer in game_world.objects]}")
+
     # track boy previous x for scrolling
     try:
         global boy_prev_x
@@ -109,7 +146,7 @@ def init():
         bat_instance.target = boy_instance
         # 맵(Grass) 참조 연결 — bat이 충돌 체크에 사용
         try:
-            bat_instance.map = grass_instance
+            bat_instance.map = grass_instance or map_manager  # MapManager를 우선 참조
         except Exception:
             bat_instance.map = None
         try:
@@ -117,23 +154,21 @@ def init():
         except Exception:
             pass
         game_world.add_object(bat_instance, 1)
-        print(
-            f"DEBUG: Added bat_instance to game_world layer 1. Layers sizes: {[len(layer) for layer in game_world.objects]}")
-    except Exception:
+    except Exception as e:
+        print(f"ERROR: Bat instance creation failed: {e}")
         bat_instance = None
 
     # 폰트 캐시
     try:
-        base_assets = os.path.join(os.path.dirname(__file__), 'assets')
-        font_path = os.path.join(base_assets, 'ENCR10B.TTF')
+        font_path = os.path.join(base_dir, 'assets', 'ENCR10B.TTF')
         _cached_font = load_font(font_path, 16)
     except Exception:
         _cached_font = None
 
     # UI 이미지 로드 (툴바 / 상태판)
     try:
-        toolbar_path = os.path.join(os.path.dirname(__file__), 'assets', 'toolbar.png')
-        status_pane_path = os.path.join(os.path.dirname(__file__), 'assets', 'status_pane.png')
+        toolbar_path = os.path.join(base_dir, 'assets', 'toolbar.png')
+        status_pane_path = os.path.join(base_dir, 'assets', 'status_pane.png')
         toolbar_image = load_image(toolbar_path)
         status_pane_image = load_image(status_pane_path)
     except Exception:
@@ -146,11 +181,13 @@ def init():
     except Exception:
         SELECT_POS_X, SELECT_POS_Y = 80, 80
 
-    print('PlayMode initialized')
+    print('PlayMode initialized successfully')
 
 
 def finish():
     global music, boy_instance, bat_instance, grass_instance, _cached_font
+    global toolbar_image, status_pane_image
+
     if music:
         try:
             music.stop()
@@ -162,20 +199,17 @@ def finish():
 
     # cleanup
     try:
-        if 'bat_instance' in globals() and bat_instance:
-            del bat_instance
+        del bat_instance
     except Exception:
         pass
 
     try:
-        if 'boy_instance' in globals() and boy_instance:
-            del boy_instance
+        del boy_instance
     except Exception:
         pass
 
     try:
-        if 'grass_instance' in globals() and grass_instance:
-            del grass_instance
+        del grass_instance
     except Exception:
         pass
 
@@ -184,12 +218,10 @@ def finish():
             del _cached_font
         except Exception:
             pass
+
     try:
-        global toolbar_image, status_pane_image
-        if toolbar_image is not None:
-            del toolbar_image
-        if status_pane_image is not None:
-            del status_pane_image
+        if toolbar_image is not None: del toolbar_image
+        if status_pane_image is not None: del status_pane_image
     except Exception:
         pass
 
@@ -236,16 +268,16 @@ def handle_events():
 
 def update():
     global SELECT_POS_X, SELECT_POS_Y
-    # world update
-    game_world.update()
-
     # frame dt
     try:
         dt = game_framework.frame_time
     except Exception:
         dt = 1.0 / 60.0
 
-    # update SELECT_POS
+    # world update
+    game_world.update()
+
+    # update SELECT_POS (초기화 오류 방지)
     if SELECT_POS_X is None:
         try:
             SELECT_POS_X = get_canvas_width() // 2
@@ -264,37 +296,30 @@ def update():
     SELECT_POS_X += SELECT_VX * dt
     SELECT_POS_Y += SELECT_VY * dt
 
-    # 맵 매니저 오른쪽 스크롤 처리: 왼쪽->오른쪽 이동이면 world offset 증가
+    # 맵 매니저 스크롤 처리
     try:
-        if map_manager is not None:
-            # world scroll: 플레이어가 오른쪽으로 움직이면 맵이 좌측으로 움직이는 대신 world_offset을 증가시킴
-            # 1) SELECT cursor based scroll (editor-style)
-            dx = SELECT_POS_X - prev_x
-            if dx > 0:
-                map_manager.scroll_right(int(dx))
+        if map_manager is not None and map_manager.segment_width > 0:
             # 2) Boy movement based scroll: when boy moves right, advance world offset
+            if boy_instance is not None and boy_prev_x is not None:
+                bdx = boy_instance.x - boy_prev_x
+                if bdx > 0:
+                    map_manager.scroll_right(int(bdx))
+                boy_prev_x = boy_instance.x
+
+            # Guard 스폰 예시
             try:
-                if boy_instance is not None and boy_prev_x is not None:
-                    bdx = boy_instance.x - boy_prev_x
-                    if bdx > 0:
-                        map_manager.scroll_right(int(bdx))
-                    boy_prev_x = boy_instance.x
+                from guard import Guard  # Guard 클래스가 존재한다고 가정
+                if map_manager.world_offset_x > 0:
+                    segment_passed = map_manager.world_offset_x // map_manager.segment_width
+                    # 세그먼트 당 하나씩만 스폰
+                    existing_guards = [o for layer in game_world.objects for o in layer if
+                                       o.__class__.__name__ == 'Guard']
+                    if len(existing_guards) < segment_passed:
+                        g = Guard(x=get_canvas_width() - 150, y=200)
+                        game_world.add_object(g, 1)
+                        print('DEBUG: Spawned Guard due to right scroll')
             except Exception:
                 pass
-                # Guard 스폰 예시: world_offset_x가 일정값 이상이면 Guard 스폰
-                try:
-                    from guard import Guard
-                    # spawn when crossing multiples of segment width
-                    seg_index = int(map_manager.world_offset_x // max(1, map_manager.segment_width))
-                    if seg_index > 0:
-                        # spawn one guard per crossed segment
-                        existing_guards = [o for layer in game_world.objects for o in layer if o.__class__.__name__ == 'Guard']
-                        if len(existing_guards) < seg_index:
-                            g = Guard(x=get_canvas_width() - 150, y=200)
-                            game_world.add_object(g, 1)
-                            print('DEBUG: Spawned Guard due to right scroll')
-                except Exception:
-                    pass
     except Exception:
         pass
 
@@ -305,7 +330,7 @@ def update():
         ratking_timer -= 1.0 / RAT_FPS
         if len(ratking_frames) > 0:
             ratking_frame = (ratking_frame + 1) % len(ratking_frames)
-        elif ratking_sheet is not None:
+        elif 'ratking_sheet' in globals() and ratking_sheet is not None:
             ratking_frame = (ratking_frame + 1) % ratking_sheet.cols
 
 
@@ -321,21 +346,18 @@ def draw():
     except Exception:
         pass
 
-    # 2. Draw World (Grass, Boy, Bat) - Boy는 Layer 1에 있으므로 여기서 그려져야 합니다.
+    # 2. Draw World (Grass, Boy, Bat, other objects)
     game_world.draw()
 
-    # 3. Draw Debug Info and UI (Force-drawing the Boy's BB for visibility check)
+    # 3. Draw Debug Info and UI
+    debug_y = canvas_h - 40
     try:
-        debug_y = canvas_h - 40
         if 'boy_instance' in globals() and boy_instance is not None:
             # 디버그 텍스트 출력
             draw_text(f'BOY: {boy_instance.x:.1f},{boy_instance.y:.1f}', 10, debug_y, align='left')
             # 바운딩 박스 강제 그리기 (빨강)
-            try:
-                x1, y1, x2, y2 = boy_instance.get_bb()
-                draw_rectangle(x1, y1, x2, y2)
-            except Exception:
-                pass
+            x1, y1, x2, y2 = boy_instance.get_bb()
+            draw_rectangle(x1, y1, x2, y2, color=(255, 0, 0))  # 보조 함수 사용
             debug_y -= 20
 
         if 'bat_instance' in globals() and bat_instance is not None:
@@ -350,7 +372,7 @@ def draw():
         if len(ratking_frames) > 0:
             img = ratking_frames[ratking_frame % len(ratking_frames)]
             img.draw(SELECT_POS_X, SELECT_POS_Y)
-        elif ratking_sheet is not None:
+        elif 'ratking_sheet' in globals() and ratking_sheet is not None:
             ratking_sheet.draw_frame(ratking_frame % ratking_sheet.cols, SELECT_POS_X, SELECT_POS_Y,
                                      RAT_CLIP_W * ratking_preview_scale, RAT_CLIP_H * ratking_preview_scale)
     except Exception:
@@ -362,30 +384,20 @@ def draw():
     # 6. Draw toolbar / status pane UI images
     try:
         if status_pane_image is not None:
-            # draw at top-left corner aligned
-            sw = status_pane_image.w
-            sh = status_pane_image.h
-            # scale to fit width ~ 240 px if larger, then increase slightly for better visibility
-            display_w = min(sw, 240)
-            display_h = int(sh * (display_w / sw))
+            sw, sh = status_pane_image.w, status_pane_image.h
             scale_up = 1.9
-            display_w = int(display_w * scale_up)
-            display_h = int(display_h * scale_up)
+            display_w = int(min(sw, 240) * scale_up)
+            display_h = int(sh * (display_w / sw))
             status_pane_image.draw(canvas_w - display_w // 2 - 10, canvas_h - display_h // 2 - 10, display_w, display_h)
     except Exception:
         pass
 
     try:
         if toolbar_image is not None:
-            tw = toolbar_image.w
-            th = toolbar_image.h
-            display_tw = min(tw, canvas_w)
-            display_th = int(th * (display_tw / tw))
-            # increase UI size slightly
+            tw, th = toolbar_image.w, toolbar_image.h
             scale_up_ui = 1.9
-            display_tw = int(display_tw * scale_up_ui)
-            display_th = int(display_th * scale_up_ui)
-            # place at bottom center with small upward offset
+            display_tw = int(min(tw, canvas_w) * scale_up_ui)
+            display_th = int(th * (display_tw / tw))
             toolbar_image.draw(canvas_w // 2, display_th // 2 + 12, display_tw, display_th)
     except Exception:
         pass
@@ -394,8 +406,6 @@ def draw():
     update_canvas()
 
 
-# --- 보조 함수들은 이제 모듈 레벨에 정의되어야 합니다. ---
-
 def draw_status_text(canvas_w, canvas_h):
     global SINGLE_FRAME_MODE, SELECT_FRAME_INDEX, SELECT_SCALE
     base_y = canvas_h - 20
@@ -403,27 +413,6 @@ def draw_status_text(canvas_w, canvas_h):
     frame_text = f"프레임: {SELECT_FRAME_INDEX}  스케일: {SELECT_SCALE:.1f}"
     draw_text(mode_text, canvas_w // 2, base_y, align='center')
     draw_text(frame_text, canvas_w // 2, base_y - 20, align='center')
-
-
-def draw_text(text, x, y, align='left'):
-    font = globals().get('_cached_font', None)
-    if font is None:
-        return
-    w = font.get_text_width(text)
-    if align == 'center':
-        x -= w // 2
-    try:
-        font.draw(x, y, text, (255, 255, 255))
-    except Exception:
-        pass
-
-
-def draw_rectangle(x1, y1, x2, y2, color=None):
-    try:
-        # pico2d.draw_rectangle은 색상 인자를 받지 않으므로 기본 바운딩 박스를 그립니다.
-        pico2d.draw_rectangle(x1, y1, x2, y2)
-    except Exception:
-        pass
 
 
 def pause():

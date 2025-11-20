@@ -1,4 +1,4 @@
-from pico2d import load_image, get_time, load_font, draw_rectangle, clamp, get_canvas_width, get_canvas_height, SDL_KEYDOWN, SDLK_SPACE, SDLK_RIGHT, SDL_KEYUP, SDLK_LEFT, SDL_QUIT, SDLK_w, SDLK_s, SDLK_UP, SDLK_DOWN, SDLK_f
+from pico2d import load_image, get_time, load_font, draw_rectangle, clamp, get_canvas_width, get_canvas_height, SDL_KEYDOWN, SDLK_SPACE, SDLK_RIGHT, SDL_KEYUP, SDLK_LEFT, SDL_QUIT, SDLK_w, SDLK_s, SDLK_UP, SDLK_DOWN, SDLK_f, SDLK_a, SDLK_d
 
 import game_world
 import game_framework
@@ -13,9 +13,8 @@ import os
 
 # --- 상수 정의 ---
 
-# RATKING 스프라이트: 타일 크기 30x30 (프로젝트의 다른 코드와 맞춤)
-# 화면에서의 스케일은 4배로 설정
-CLIP_W, CLIP_H = 30, 30
+# RATKING 스프라이트: 실제 assets/ratking.png는 128x64이고 프레임은 16x16으로 구성되어 있음
+CLIP_W, CLIP_H = 16, 16
 SCALE_FACTOR = 4.0
 TARGET_W = int(CLIP_W * SCALE_FACTOR)
 TARGET_H = int(CLIP_H * SCALE_FACTOR)
@@ -140,8 +139,11 @@ class Run:
     def enter(self, e):
         if right_down(e):
             self.boy.dir = self.boy.face_dir = 1
+            # update facing vector for horizontal
+            self.boy.facing_x, self.boy.facing_y = 1, 0
         elif left_down(e):
             self.boy.dir = self.boy.face_dir = -1
+            self.boy.facing_x, self.boy.facing_y = -1, 0
 
     def exit(self, e):
         if space_down(e): self.boy.fire_projectile()
@@ -199,12 +201,22 @@ class Boy:
         self.vy = 0.0
         self.VSPEED_PPS = RUN_SPEED_PPS  # 수평 속도와 비슷하게 설정
 
+        # 입력 상태 추적 (WASD 및 화살표) - 발사시 방향 결정용
+        self.input_up = False
+        self.input_down = False
+        self.input_left = False
+        self.input_right = False
+
+        # 최근 바라보는 방향 벡터 (기본: 오른쪽)
+        self.facing_x = 1
+        self.facing_y = 0
+
         # 이동 추적용: 이전 위치와 누적 이동 픽셀 수
         self._prev_x = self.x
         self._prev_y = self.y
         self.cumulative_moved = 0
 
-        # 이미지(스프라이트 시트) 로드: 'assets/ratking.png' 사용. 프레임 크기 30x30
+        # 이미지(스프라이트 시트) 로드: 'assets/ratking.png' 사용. 프레임 크기 16x16
         try:
             self.image = SpriteSheet('assets/ratking.png', CLIP_W, CLIP_H)
             print("DEBUG: Boy sprite sheet loaded from assets/ratking.png")
@@ -297,80 +309,133 @@ class Boy:
             if event.type == SDL_KEYDOWN:
                 if event.key in (SDLK_w, SDLK_UP):
                     self.vy = self.VSPEED_PPS
+                    self.input_up = True
+                    # update facing vector when pressing up
+                    self.facing_x, self.facing_y = 0, 1
                 elif event.key in (SDLK_s, SDLK_DOWN):
                     self.vy = -self.VSPEED_PPS
+                    self.input_down = True
+                    self.facing_x, self.facing_y = 0, -1
                 elif event.key == SDLK_f:
-                    # F 키로 투사체 발사
-                    self.fire_projectile()
+                    # F 키로 투사체 발사 — 현재 입력 방향에 따라 발사 방향 결정
+                    self.fire_projectile_from_input()
+                elif event.key == SDLK_a:
+                    # A 키 또는 왼쪽 화살표로 왼쪽 이동
+                    self.input_left = True
+                    self.dir = self.face_dir = -1
+                    self.facing_x, self.facing_y = -1, 0
+                elif event.key == SDLK_d:
+                    # D 키 또는 오른쪽 화살표로 오른쪽 이동
+                    self.input_right = True
+                    self.dir = self.face_dir = 1
+                    self.facing_x, self.facing_y = 1, 0
             elif event.type == SDL_KEYUP:
-                if event.key in (SDLK_w, SDLK_UP, SDLK_s, SDLK_DOWN):
+                if event.key in (SDLK_w, SDLK_UP):
                     self.vy = 0.0
+                    self.input_up = False
+                    # if releasing up, keep last horizontal facing or default right
+                    if not (self.input_left or self.input_right):
+                        # keep vertical facing only if no horizontal input active
+                        pass
+                elif event.key in (SDLK_s, SDLK_DOWN):
+                    self.vy = 0.0
+                    self.input_down = False
+                elif event.key == SDLK_f:
+                    # keyup에선 아무 작업 안 함
+                    pass
+                elif event.key == SDLK_a:
+                    # A 키 해제 시 왼쪽 이동 상태 종료
+                    self.input_left = False
+                    if not self.input_right:
+                        # 오른쪽 이동이 아닐 경우에만 방향 초기화
+                        self.dir = 0
+                elif event.key == SDLK_d:
+                    # D 키 해제 시 오른쪽 이동 상태 종료
+                    self.input_right = False
+                    if not self.input_left:
+                        # 왼쪽 이동이 아닐 경우에만 방향 초기화
+                        self.dir = 0
         except Exception:
             pass
-
-    def handle_collision(self, group, other):
-        # Called by game_world when enemy collides with Boy
-        try:
-            if group in ('boy:enemy', 'boy:bat', 'boy:guard'):
-                print('DEBUG: Boy collided with enemy')
-                # keep boy alive; optionally handle damage here
-                pass
-        except Exception:
-            pass
-
-    def draw(self):
-        try:
-            if self.image is not None:
-                # 모든 이동(수평 또는 수직)에서는 같은 RUN_ROW 애니메이션을 사용하도록 통일
-                moving = (abs(self.dir) > 0) or (abs(self.vy) > 0.0)
-                if moving:
-                    # 프레임 진보(런 애니메이션 속도 사용)
-                    try:
-                        dt = game_framework.frame_time
-                    except Exception:
-                        dt = 1.0 / 60.0
-                    try:
-                        cols = self.image.cols
-                    except Exception:
-                        cols = FRAMES_PER_ACTION
-                    # 스프라이트 시트의 cols를 사용하여 프레임을 순환
-                    self.frame = (self.frame + cols * ACTION_PER_TIME * dt * RUN_ANIM_SPEED_MULTIPLIER) % cols
-                    # 항상 RUN_ROW 사용해서 앞/뒤/아래 이동시 동일 스프라이트 사용
-                    idx = RUN_ROW * cols + int(self.frame % cols)
-                    # draw_frame expects index relative to entire sheet
-                    self.image.draw_frame(idx, self.x, self.y, TARGET_W, TARGET_H, flip=(self.face_dir == -1), rotate=0)
-                else:
-                    # 이동이 없을 때는 상태 머신의 draw()를 사용 (Idle/Sleep 처리)
-                    self.state_machine.draw()
-            else:
-                 # fallback: draw simple rectangle and text
-                 x1, y1, x2, y2 = self.get_bb()
-                 draw_rectangle(x1, y1, x2, y2)
-                 try:
-                     f = load_font('assets/ENCR10B.TTF', 12)
-                 except Exception:
-                     f = None
-                 if f:
-                     f.draw(self.x - 10, self.y + TARGET_H // 2, f'{self.ball_count:02d}', (255, 255, 0))
-        except Exception as e:
-            print(f"ERROR: Boy.draw failed: {e}")
-            try:
-                draw_rectangle(*self.get_bb())
-            except Exception:
-                pass
-
-        if self.font:
-            self.font.draw(self.x - 10, self.y + TARGET_H // 2, f'{self.ball_count:02d}', (255, 255, 0))
 
     def fire_projectile(self):
         # create a projectile moving in facing direction and add to game world
         try:
             from projectile import Projectile
+            # 기본 속도 및 방향: 최근 바라본 방향 벡터를 사용
             speed = 400.0
-            vx = speed * (1 if self.face_dir >= 0 else -1)
-            proj = Projectile(self.x + (TARGET_W//2 + 6) * (1 if self.face_dir >= 0 else -1), self.y, vx, 0, damage=1, owner=self)
+            fx = getattr(self, 'facing_x', 1)
+            fy = getattr(self, 'facing_y', 0)
+            import math
+            mag = math.hypot(fx, fy)
+            if mag == 0:
+                fx, fy = (1, 0)
+                mag = 1
+            vx = speed * (fx / mag)
+            vy = speed * (fy / mag)
+            # 발사 위치는 바라보는 방향 기준으로 약간 앞쪽
+            # 방향 부호를 명확히 하여 수직(0)일 때 기본값으로 오른쪽이 되는 문제를 제거
+            sign_x = 1 if fx > 0 else (-1 if fx < 0 else 0)
+            sign_y = 1 if fy > 0 else (-1 if fy < 0 else 0)
+            if sign_x == 0 and sign_y != 0:
+                proj_x = self.x
+                proj_y = self.y + (TARGET_H // 2 + 2) * sign_y
+            else:
+                proj_x = self.x + (TARGET_W // 2 + 6) * (sign_x if sign_x != 0 else 1)
+                proj_y = self.y + (TARGET_H // 2 + 2) * (1 if fy >= 0 else -1)
+            proj = Projectile(proj_x, proj_y, vx, vy, damage=1, owner=self)
             game_world.add_object(proj, 1)
             # debug print
-            print("DEBUG: Boy fired projectile")
+            print(f"DEBUG: Boy fired projectile at x={proj_x:.1f} y={proj_y:.1f} vx={vx:.1f} vy={vy:.1f}")
         except Exception as e:
             print(f"ERROR: fire_projectile failed: {e}")
+
+    def fire_projectile_from_input(self):
+        # determine direction based on WASD/arrow inputs (combination supported)
+        try:
+            from projectile import Projectile
+            speed = 400.0
+            dx = 0
+            dy = 0
+            if self.input_left:
+                dx -= 1
+            if self.input_right:
+                dx += 1
+            if self.input_up:
+                dy += 1
+            if self.input_down:
+                dy -= 1
+
+            # if no directional keys pressed, use recent facing vector
+            if dx == 0 and dy == 0:
+                dx = getattr(self, 'facing_x', 1)
+                dy = getattr(self, 'facing_y', 0)
+
+            # normalize to get consistent speed when diagonal
+            import math
+            mag = math.hypot(dx, dy)
+            if mag == 0:
+                dx, dy = 1, 0
+                mag = 1
+            vx = speed * (dx / mag)
+            vy = speed * (dy / mag)
+
+            # use facing direction to decide spawn offset sign when one axis is zero
+            sign_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
+            sign_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
+            # if horizontal is zero but vertical non-zero, spawn at player's x and offset y
+            if sign_x == 0 and sign_y != 0:
+                proj_x = self.x
+                proj_y = self.y + (TARGET_H // 2 + 2) * sign_y
+            else:
+                # if both zero shouldn't happen; fallback to facing_x for horizontal sign
+                if sign_x == 0:
+                    sign_x = 1 if getattr(self, 'facing_x', 1) >= 0 else -1
+                proj_x = self.x + (TARGET_W // 2 + 6) * sign_x
+                proj_y = self.y + (TARGET_H // 2 + 2) * (sign_y if sign_y != 0 else (1 if getattr(self, 'facing_y', 0) >= 0 else -1))
+
+            proj = Projectile(proj_x, proj_y, vx, vy, damage=1, owner=self)
+            game_world.add_object(proj, 1)
+            print(f"DEBUG: Boy fired projectile from input dx={dx}, dy={dy} vx={vx:.1f} vy={vy:.1f} proj_x={proj_x:.1f} proj_y={proj_y:.1f}")
+        except Exception as e:
+            print(f"ERROR: fire_projectile_from_input failed: {e}")
