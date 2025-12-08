@@ -13,7 +13,8 @@ try:
 except Exception:
     pass
 
-# play_mode는 캔버스가 열린 이후에 import 합니다.
+# play_mode는 캔
+# 버스가 열린 이후에 import 합니다.
 import play_mode
 
 
