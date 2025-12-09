@@ -43,7 +43,8 @@ def draw():
     """모든 객체의 draw() 메서드를 호출합니다."""
     for layer in objects:
         for o in layer:
-            o.draw()
+            if hasattr(o, 'draw'):
+                o.draw()
 
 
 def clear():
