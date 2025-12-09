@@ -1,5 +1,9 @@
 # game_world.py
 
+from pico2d import *
+import game_framework
+import sys
+
 # 게임 객체를 저장하는 레이어 리스트
 objects = []
 NUM_LAYERS = 2  # 0: 배경, 1: 캐릭터/몬스터 등으로 사용
@@ -30,16 +34,16 @@ def update():
     # 간단한 충돌 검사 호출
     try:
         check_collisions()
-    except Exception:
+    except Exception as e:
+        # print(f"ERROR in check_collisions: {e}", file=sys.stderr)
         pass
 
 
 def draw():
     """모든 객체의 draw() 메서드를 호출합니다."""
     for layer in objects:
-        for obj in layer:
-            if hasattr(obj, 'draw'):
-                obj.draw()
+        for o in layer:
+            o.draw()
 
 
 def clear():
@@ -51,51 +55,48 @@ def clear():
 
 
 def remove_object(obj):
-    """레이어에서 객체를 찾아 제거합니다."""
+    """지정된 객체를 월드에서 제거합니다."""
     for layer in objects:
         if obj in layer:
-            try:
-                layer.remove(obj)
-            except Exception:
-                pass
+            layer.remove(obj)
+            return
 
-
-def add_collision_pair(name, a, b):
-    """간단한 충돌 페어 등록(사용자 코드가 호출할 수 있도록)"""
-    collision_pairs[name] = (a, b)
-
-
-def remove_collision_pair(name):
-    try:
-        if name in collision_pairs:
+    # 충돌 쌍에서도 제거 (선택 사항, 충돌 로직 복잡성에 따라 다름)
+    for name, pair in list(collision_pairs.items()):
+        if obj in pair:
             del collision_pairs[name]
-    except Exception:
-        pass
+            return
 
+
+def add_collision_pair(a, b, group_name):
+    """충돌 쌍을 추가합니다."""
+    collision_pairs[group_name] = (a, b)
+
+
+def all_objects():
+    """모든 레이어의 모든 객체를 반환합니다."""
+    for layer in objects:
+        for obj in layer:
+            yield obj
+
+
+def aabb(obj):
+    """객체의 AABB (Axis-Aligned Bounding Box)를 반환합니다."""
+    if hasattr(obj, 'get_bb'):
+        return obj.get_bb()
+    return None
+
+
+# =========================================================================
+# 충돌 처리 관련 함수 (기존 코드에서 그대로 유지)
+# =========================================================================
 
 def check_collisions():
-    """
-    간단한 AABB 기반 충돌 검사:
-    - 투사체(projectile) vs 적(bat, guard): 투사체가 적에 충돌하면 투사체.on_collision(target) 호출
-    - 적 vs 소년(boy): 적과 boy가 충돌하면 양쪽의 충돌 핸들러를 호출
-    """
-    # gather lists
-    all_objs = []
-    for layer in objects:
-        for o in layer:
-            all_objs.append(o)
+    """간단한 AABB 충돌 검사를 수행하고 on_collision을 호출합니다."""
+    all_objs = list(all_objects())
 
-    # helper aabb
-    def aabb(a):
-        if hasattr(a, 'get_bb'):
-            try:
-                return a.get_bb()
-            except Exception:
-                return None
-        return None
-
-    # find projectiles
-    projectiles = [o for o in all_objs if o.__class__.__name__.lower().find('projectile') != -1]
+    # Example 1: Projectile -> Enemy collision
+    projectiles = [o for o in all_objs if o.__class__.__name__.lower() == 'projectile']
     enemies = [o for o in all_objs if o.__class__.__name__.lower() in ('bat', 'guard')]
     boys = [o for o in all_objs if o.__class__.__name__.lower() == 'boy']
 
@@ -132,15 +133,10 @@ def check_collisions():
             if not (ex2 < bx1 or ex1 > bx2 or ey2 < by1 or ey1 > by2):
                 try:
                     if hasattr(e, 'handle_collision'):
-                        e.handle_collision('enemy:boy', b)
-                except Exception:
-                    pass
-                try:
+                        e.handle_collision(b)
                     if hasattr(b, 'handle_collision'):
-                        b.handle_collision('boy:enemy', e)
+                        b.handle_collision(e)
                 except Exception:
                     pass
 
-
-# 모듈이 로드될 때 바로 초기화
-init()
+    # ... (다른 충돌 로직이 있다면 여기에 추가)

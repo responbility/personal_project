@@ -22,6 +22,7 @@ def run(start_mode):
     running = True
     stack = [start_mode]
     start_mode.init()
+    start_mode.enter()
 
     last_time = time.time()  # 게임 시작 시간 기록
 
