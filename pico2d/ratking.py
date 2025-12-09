@@ -33,7 +33,7 @@ class Ratking:
     def update(self):
         # 애니메이션
         self.frame_time += 1
-        if self.frame_time >= 5:
+        if self.frame_time >= 10:
             self.frame_time = 0
             frames = self._current_frames()
             self.frame_index = (self.frame_index + 1) % len(frames)
@@ -73,37 +73,39 @@ class Ratking:
             )
 
     def fire_ball(self):
-        # Ratking의 현재 위치를 기준으로 불덩이를 생성합니다.
-        ball_x = self.x + self.dir * 30  # Ratking의 오른쪽/왼쪽으로 약간 떨어진 곳
-        ball_y = self.y  # Ratking과 같은 y 높이
-
         throw_speed = 30  # 발사 속도 (m/s)
 
-        # Ratking의 dir(방향)에 따라 발사 각도를 결정합니다.
-        # dir = 1 (오른쪽): 각도 0도 (수평 발사)
-        # dir = -1 (왼쪽): 각도 180도 (수평 발사)
-        throw_angle = 0 if self.dir == 1 else 180
-
-        # Ball 객체를 생성합니다.
+        if self.dir == 1:  # 오른쪽 방향
+            # Ratking의 오른쪽으로 약간 떨어진 곳에서 시작
+            ball_x = self.x + 30
+            ball_y = self.y
+            throw_angle = 0  # 0도 (수평 오른쪽)
+        else:  # 왼쪽 방향 (self.dir == -1)
+            # Ratking의 왼쪽으로 약간 떨어진 곳에서 시작
+            ball_x = self.x - 30
+            ball_y = self.y
+            throw_angle = 180  # 180도 (수평 왼쪽)
         fire_ball = Ball(ball_x, ball_y, throw_speed, throw_angle)
 
-        # 생성된 불덩이를 게임 월드에 추가하여 업데이트, 드로우 되게 합니다.
-        # Ratking이 던진 Ball은 'ratking:ball' 또는 'enemy_ball' 등의 충돌 그룹에 추가할 수 있습니다.
-        # 여기서는 'ball' 그룹에 추가하고, 충돌 처리는 게임 메인 루프에서 정의해야 합니다.
+
         game_world.add_object(fire_ball, 1)  # layer 1 (임의의 값)
         game_world.add_collision_pair('ratking:ball', None, fire_ball)  # 충돌 그룹 설정 (예시)
 
     def handle_event(self, event):
         if event.type == SDL_KEYDOWN:
-            if event.key == SDLK_LEFT:
+            # 왼쪽: ← 또는 A
+            if event.key in (SDLK_LEFT, SDLK_a):
                 self.dir = -1
                 self.action = 'walk'
-            elif event.key == SDLK_RIGHT:
+            # 오른쪽: → 또는 D
+            elif event.key in (SDLK_RIGHT, SDLK_d):
                 self.dir = 1
                 self.action = 'walk'
-            # 🚀 스페이스바를 누르면 불덩이를 발사합니다.
+            # 스페이스바: 불덩이 발사
             elif event.key == SDLK_SPACE:
                 self.fire_ball()
+
         elif event.type == SDL_KEYUP:
-            if event.key in (SDLK_LEFT, SDLK_RIGHT):
+            # 좌우 관련 키를 떼면 멈춤
+            if event.key in (SDLK_LEFT, SDLK_RIGHT, SDLK_a, SDLK_d):
                 self.action = 'idle'
