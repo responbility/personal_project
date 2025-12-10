@@ -93,10 +93,10 @@ def aabb(obj):
 # =========================================================================
 
 def check_collisions():
-    """간단한 AABB 충돌 검사를 수행하고 on_collision을 호출합니다."""
+    """간단한 AABB 충돌 검사를 수행하고 on_collision/handle_collision을 호출합니다."""
     all_objs = list(all_objects())
 
-    # Example 1: Projectile -> Enemy collision
+    # projectile, enemy, boy 기존 로직은 그대로 두고, Ball-Guard 충돌을 추가
     projectiles = [o for o in all_objs if o.__class__.__name__.lower() == 'projectile']
     enemies = [o for o in all_objs if o.__class__.__name__.lower() in ('bat', 'guard')]
     boys = [o for o in all_objs if o.__class__.__name__.lower() == 'boy']
@@ -140,4 +140,26 @@ def check_collisions():
                 except Exception:
                     pass
 
-    # ... (다른 충돌 로직이 있다면 여기에 추가)
+    # Ball -> Guard 충돌 (Ratking이 쏜 공이 경비에게 맞는 경우)
+    from ball import Ball
+    balls = [o for o in all_objs if isinstance(o, Ball)]
+    guards = [o for o in all_objs if o.__class__.__name__.lower() == 'guard']
+
+    for b in balls:
+        b_bb = aabb(b)
+        if b_bb is None:
+            continue
+        bx1, by1, bx2, by2 = b_bb
+        for g in guards:
+            g_bb = aabb(g)
+            if g_bb is None:
+                continue
+            gx1, gy1, gx2, gy2 = g_bb
+            if not (bx2 < gx1 or bx1 > gx2 or by2 < gy1 or by1 > gy2):
+                try:
+                    if hasattr(g, 'handle_collision'):
+                        g.handle_collision(b)
+                except Exception:
+                    pass
+
+    # ...existing other collision logic...

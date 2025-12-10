@@ -4,6 +4,7 @@ import title_mode
 import game_world
 import play_mode_2
 from ratking import Ratking
+from guard import Guard  # 경비원 추가 임포트
 
 # 가상 전체 맵 크기 정의
 MAP_WIDTH = 1500
@@ -56,6 +57,7 @@ class Background:
 
 # 전역 상태
 ratking_instance = None
+guard_instance = None
 
 
 def init():
@@ -63,8 +65,8 @@ def init():
 
 
 def enter():
-    """월드 초기화 + 배경 + ratking 등록"""
-    global ratking_instance, bg
+    """월드 초기화 + 배경 + ratking + guard 등록"""
+    global ratking_instance, bg, guard_instance
     print('PlayMode enter')
 
     game_world.init()
@@ -72,19 +74,24 @@ def enter():
     # Ratking 먼저 생성 (Background가 참조하도록)
     ratking_instance = Ratking()
 
+    # Guard 생성: Ratking을 추적하도록 target으로 넘김
+    guard_instance = Guard(x=800, y=400, target=ratking_instance)
+
     # 0번 레이어: 배경 (Ratking 참조 전달)
     background = Background(ratking_instance)
     game_world.add_object(background, 0)
 
-    # 1번 레이어: ratking
+    # 1번 레이어: ratking과 guard
     game_world.add_object(ratking_instance, 1)
+    game_world.add_object(guard_instance, 1)
 
 
 def exit():
-    global ratking_instance, bg
+    global ratking_instance, bg, guard_instance
     print('PlayMode exit')
     game_world.clear()
     ratking_instance = None
+    guard_instance = None
     bg = None
 
 
