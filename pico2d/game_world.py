@@ -96,7 +96,7 @@ def check_collisions():
     """간단한 AABB 충돌 검사를 수행하고 on_collision/handle_collision을 호출합니다."""
     all_objs = list(all_objects())
 
-    # projectile, enemy, boy 기존 로직은 그대로 두고, Ball-Guard 충돌을 추가
+    # 기존 projectile/enemy/boy, Ball-Guard 충돌 로직 그대로 유지
     projectiles = [o for o in all_objs if o.__class__.__name__.lower() == 'projectile']
     enemies = [o for o in all_objs if o.__class__.__name__.lower() in ('bat', 'guard')]
     boys = [o for o in all_objs if o.__class__.__name__.lower() == 'boy']
@@ -161,5 +161,26 @@ def check_collisions():
                         g.handle_collision(b)
                 except Exception:
                     pass
+
+    # Guard -> Ratking 충돌 (경비가 Ratking을 잡으면 게임 종료)
+    ratkings = [o for o in all_objs if o.__class__.__name__.lower() == 'ratking']
+
+    for g in guards:
+        g_bb = aabb(g)
+        if g_bb is None:
+            continue
+        gx1, gy1, gx2, gy2 = g_bb
+        for rk in ratkings:
+            rk_bb = aabb(rk) if hasattr(rk, 'get_bb') else None
+            # Ratking에 get_bb가 없다면 간단히 화면 좌표 기준으로 박스를 만들어 사용
+            if rk_bb is None:
+                half_w, half_h = 16 * 2, 16 * 2  # Ratking SCALE=4.0 기준 대략적인 크기
+                rk_bb = (rk.x - half_w, rk.y - half_h, rk.x + half_w, rk.y + half_h)
+
+            rx1, ry1, rx2, ry2 = rk_bb
+            if not (gx2 < rx1 or gx1 > rx2 or gy2 < ry1 or gy1 > ry2):
+                # 충돌 발생: Guard가 Ratking을 잡은 것으로 간주하고 게임 종료
+                print("[Collision] Guard caught Ratking -> quit game")
+                game_framework.quit()
 
     # ...existing other collision logic...
